@@ -5,8 +5,8 @@ window.FT_CONFIG = {
   googleClientId: "97291063216-6aa5f6rkhlq57b40svh5pi479tjvraim.apps.googleusercontent.com",
 
   // From Supabase > Project Settings > API. The "anon / publishable" key is meant to be public.
-  supabaseUrl: "",        // e.g. https://abcdefghijkl.supabase.co
-  supabaseAnonKey: "",
+  supabaseUrl: "https://ntiouahscpjtnggxcflu.supabase.co",        // e.g. https://abcdefghijkl.supabase.co
+  supabaseAnonKey: "sb_publishable_f4-p5PjQpJ_KyIjwQ9_JWw_Wc-5lUch",
 
   // Optional: URL of the send-code function, so reset codes are emailed (see README step 6)
   // e.g. https://abcdefghijkl.supabase.co/functions/v1/send-code
