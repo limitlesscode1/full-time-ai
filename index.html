@@ -239,7 +239,7 @@ body.nd-on{background:var(--bg) radial-gradient(ellipse 80% 520px at 50% -80px,r
 .lp-contact p a{word-break:break-all}
 @media(max-width:480px){.lp-tiles{gap:10px}.lp-tiles .tile{padding:14px}.lp-tiles .tile b{font-size:28px}.lp-in{padding:14px}}
 
-/* ===== KickPredict theme ===== */
+/* ===== Full Time AI theme ===== */
 :root[data-theme="dark"]{--bg:#030a1a;--panel:#071428;--line:#17386b;--soft:#0b1f40;--acc:#3b9bff;--acc-ink:#021030;--mute:#9db3d4}
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#030a1a;--panel:#071428;--line:#17386b;--soft:#0b1f40;--acc:#3b9bff;--acc-ink:#021030;--mute:#9db3d4}}
 body{font-family:'Plus Jakarta Sans',Barlow,system-ui,sans-serif}
@@ -548,7 +548,7 @@ body.adm-on #up{display:block!important}
 }
 @media(prefers-reduced-motion:reduce){.ad-side,.ad input.sw,.ad input.sw:after{transition:none}}
 
-/* Admin access, responsive admin workspace and user preview */
+
 .ad-gate{background:radial-gradient(ellipse at 50% 0,rgba(59,155,255,.18),transparent 60%),var(--bg)}
 .ad-gc{border:1px solid var(--line);border-radius:24px!important;padding:clamp(20px,4vw,34px);box-shadow:0 18px 55px rgba(4,22,55,.14);background:linear-gradient(155deg,color-mix(in srgb,var(--panel) 92%,transparent),var(--panel))}
 .ad-gate-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:22px}
@@ -565,7 +565,6 @@ body.adm-on .ad-main{scroll-margin-top:70px}
 @media(max-width:860px){.ad-bar{top:0;margin:0 0 14px}.ad-main{padding-top:0}.ad-menu{position:sticky;top:8px}}
 
 
-/* Admin scrolling correction: keep the document as the sole vertical scroller. */
 html:has(body.adm-on), body.adm-on { min-height:100%; height:auto!important; overflow-x:hidden!important; overflow-y:auto!important; }
 body.adm-on .ad { min-height:100vh; height:auto!important; align-items:start; overflow:visible!important; }
 body.adm-on .ad-main { min-width:0; min-height:100vh; height:auto!important; overflow:visible!important; padding-top:18px; }
