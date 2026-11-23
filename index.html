@@ -750,7 +750,7 @@ const COUNTRIES=[...CONT,...Object.keys(DATA).filter(k=>!CONT.includes(k))];
 const comps=c=>[...DATA[c].L,...DATA[c].cups];
 function teamsOf(c,i){const D=DATA[c];if(i===0)return D.T;const n=i<D.L.length?(i===1?18:16):16;return gen(D.L[i]?.split(" ").map(w=>w[0]).join("")||"Cup",n)}
 const MD=Math.max(1,Math.floor((weekendStart()-new Date('2026-08-14'))/6048e5)+1);
-const S={tab:'home',country:'Premier League',comp:0,pcountry:'Premier League',pcomp:0,pteam:0,hc:'All',pos:'All',q:'',md:0,mdl:'All',day:'All'};
+const S={ptm:'All',tab:'home',country:'Premier League',comp:0,pcountry:'Premier League',pcomp:0,pteam:0,hc:'All',pos:'All',q:'',md:0,mdl:'All',day:'All'};
 
 /* ---------- league clock: tables refresh after the LAST match of a matchday ---------- */
 function weekendStart(){const d=new Date();d.setHours(0,0,0,0);d.setDate(d.getDate()-((d.getDay()+2)%7));return d}
@@ -884,13 +884,10 @@ function predict0(f){const H=stats(f.home,f.c,0),A=stats(f.away,f.c,0),avg=lvAvg
  for(let i=0;i<=7;i++)for(let j=0;j<=7;j++){const p=po(i,lh)*po(j,la);i>j?ph+=p:i===j?pd+=p:pa+=p;if(i+j>2)ov+=p;if(i&&j)bt+=p;if(p>best[2])best=[i,j,p]}
  const z=ph+pd+pa;ph/=z;pd/=z;pa/=z;
  const o=[['Home win',ph],['Draw',pd],['Away win',pa]].sort((x,y)=>y[1]-x[1])[0];
- return{ph,pd,pa,ov,bt,score:best,call:o[0],conf:o[1],H,A,lh,la}}
+ return{ph,pd,pa,ov,bt,score:[Math.round(lh),Math.round(la),po(Math.round(lh),lh)*po(Math.round(la),la)],call:o[0],conf:o[1],H,A,lh,la}}
 function sched(c,h,a){const L=LV.lg[c];if(!L)return null;const now=Date.now();const f=L.fx.filter(x=>!x.pp&&x.state!=='FT'&&(x.state==='LIVE'||x.ko.getTime()>now-3*36e5)&&((x.home===h&&x.away===a)||(x.home===a&&x.away===h))).sort((x,y)=>x.ko-y.ko)[0];return f?{m:lvRoundOf(c,f),ko:f.ko,f}:null}
 function favFx(t){const o=[];COUNTRIES.filter(c=>DATA[c].T.includes(t)).forEach(c=>{const f=upFx(c,0).find(x=>x.home===t||x.away===t);if(f)o.push({c,m:lvRoundOf(c,f),f})});return o.sort((a,b)=>new Date(a.f.ko)-new Date(b.f.ko))}
-function banner(R){const L=LV.lg[R.name];if(!L||(L.err&&!L.fx.length))return lvNote(R.name);
- const fr=lvFresh(L);
- if(R.isCup)return`<div class="note">${adH(lvLab(R.label)||'Fixtures and results')}. ${fr}</div>`;
- return`<div class="note">Table after ${R.P} matches played. ${adH(lvLab(R.label)||('Round '+R.N))}${R.done?' has finished.':' is in progress.'} ${fr}</div>`}
+function banner(R){return lvNote(R.name)}
 function home(){
  if(!S.hcI){S.hcI=1;const d=me()&&me().set&&me().set.dl;if(d&&COUNTRIES.includes(d))S.hc=d}
  const cs=S.hc==='All'?COUNTRIES:[S.hc];let list=[];
@@ -904,12 +901,20 @@ function home(){
  const hm=$('#hmore');if(hm)hm.onclick=()=>{S.hl=lim+24;home()};
  DDH.hc=v=>{S.hc=v;S.hl=0;home()};countUp(app)}
 function players(){
- const c=S.pcountry,L=LV.lg[c];S.pm=S.pm||'g';
+ const c=S.pcountry,L=LV.lg[c];S.pm=S.pm||'s';
  if(L&&L.id&&L.sc===null&&!L.scBusy){L.scBusy=1;lvScorers(c).finally(()=>{L.scBusy=0;if(S.tab==='players'&&S.pcountry===c&&!lvBusy())players()})}
- const list=((S.pm==='a'?L&&L.as:L&&L.sc)||[]).filter(p=>(p.n+' '+p.t).toLowerCase().includes(S.q.toLowerCase())).slice().sort((a,b)=>S.pm==='a'?(b.a-a.a||b.g-a.g):(b.g-a.g||b.a-a.a));
- DDH.pm=v=>{S.pm=v;players()};
- app.innerHTML=`<h2 style='font-size:26px;margin-bottom:10px'>Players</h2><div class='note'>Top scorers and assist leaders for the selected league. ${L?lvFresh(L):''}</div>`+selectors('pcountry','pcomp',dd('pm',[['g','Top scorers'],['a','Top assists']],S.pm,'List')+`<input id='pq' placeholder='Search player or team' value='${adH(S.q)}'>`)+lvNote(c)+
- `<div class='tw'><table><thead><tr><th>#</th><th>Player</th><th>Team</th><th>Goals</th><th>Assists</th><th>Apps</th><th>Goals per game</th></tr></thead><tbody>${list.map((p,i)=>`<tr><td>${i+1}</td><td>${adH(p.n)}</td><td>${tmx(p.t)}</td><td><b>${p.g}</b></td><td>${p.a}</td><td>${p.ap}</td><td>${p.ap?(p.g/p.ap).toFixed(2):'-'}</td></tr>`).join('')||`<tr><td colspan=7>${L&&L.sc===null&&!L.scErr?'Loading players…':(L&&L.scErr?adH(L.scErr):'No players to show.')}</td></tr>`}</tbody></table></div>`;
+ const T=(DATA[c]&&DATA[c].T)||[];if(S.ptm!=='All'&&!T.includes(S.ptm))S.ptm='All';S.ptm=S.ptm||'All';
+ const mp=new Map();[...((L&&L.sc)||[]),...((L&&L.as)||[])].forEach(p=>{const k=p.n+'|'+p.t;if(!mp.has(k))mp.set(k,{n:p.n,t:p.t,g:p.g,a:p.a,ap:p.ap})});
+ const all=[...mp.values()],tg=t=>{const r=L&&L.table&&L.table.find(x=>x.t===t);return r?r.gf:0};
+ all.forEach(p=>{p.inv=p.g+.7*p.a;p.pg=p.ap?p.inv/p.ap:0;p.gp=p.ap?p.g/p.ap:0;p.sh=tg(p.t)?p.g/tg(p.t):0});
+ const m1=Math.max(.01,...all.filter(p=>p.ap>=3).map(p=>p.pg),...(all.some(p=>p.ap>=3)?[]:all.map(p=>p.pg))),m2=Math.max(.01,...all.map(p=>p.inv));
+ all.forEach(p=>{p.st=Math.round(100*(.65*Math.min(1,p.pg/m1)+.35*Math.min(1,p.inv/m2)))});
+ const key={s:'st',g:'g',a:'a',gp:'gp',i:'pg',sh:'sh'}[S.pm]||'st',q=S.q.toLowerCase();
+ const list=all.filter(p=>(S.ptm==='All'||p.t===S.ptm)&&(p.n+' '+p.t).toLowerCase().includes(q)).sort((a,b)=>b[key]-a[key]||b.g-a.g||b.a-a.a);
+ DDH.pm=v=>{S.pm=v;players()};DDH.ptm=v=>{S.ptm=v;players()};
+ const bar=v=>`<span style='display:inline-block;width:64px;height:6px;border-radius:4px;background:var(--line);vertical-align:middle;margin-right:8px'><i style='display:block;height:100%;width:${v}%;border-radius:4px;background:var(--acc)'></i></span><b>${v}</b>`;
+ app.innerHTML=`<h2 style='font-size:26px;margin-bottom:10px'>Players</h2>`+selectors('pcountry','pcomp',dd('ptm',[['All','All teams'],...T.map(t=>[t,t])],S.ptm,'Team')+dd('pm',[['s','Strength'],['g','Goals'],['a','Assists'],['gp','Goals per game'],['i','Goals + assists per game'],['sh','Share of team goals']],S.pm,'Sort by')+`<input id='pq' placeholder='Search player or team' value='${adH(S.q)}'>`)+lvNote(c)+
+ `<div class='tw'><table><thead><tr><th>#</th><th>Player</th><th>Team</th><th title='0 to 100. Mixes goal involvement per game (goals plus 0.7 per assist) with total output, compared with the best players in this league.'>Strength</th><th>Apps</th><th>Goals</th><th>Assists</th><th>Goals per game</th><th>G+A per game</th><th>Team goals</th></tr></thead><tbody>${list.map((p,i)=>`<tr><td>${i+1}</td><td>${adH(p.n)}</td><td>${tmx(p.t)}</td><td style='white-space:nowrap'>${bar(p.st)}</td><td>${p.ap}</td><td><b>${p.g}</b></td><td>${p.a}</td><td>${p.ap?p.gp.toFixed(2):'-'}</td><td>${p.ap?((p.g+p.a)/p.ap).toFixed(2):'-'}</td><td>${tg(p.t)?Math.round(p.sh*100)+'%':'-'}</td></tr>`).join('')||`<tr><td colspan=10>${L&&L.sc===null&&!L.scErr?'Loading players…':(L&&L.scErr?adH(L.scErr):'No players to show.')}</td></tr>`}</tbody></table></div>`;
  $('#pq').oninput=e=>{S.q=e.target.value;const v=S.q;players();const q=$('#pq');q.focus();q.setSelectionRange(v.length,v.length)}}
 function matchdays(){
  const c=COUNTRIES.includes(S.mdl)?S.mdl:COUNTRIES[0];S.mdl=c;const L=LV.lg[c],rs=L?lvRounds(L):[],cur=L?lvCur(L):0;
@@ -921,8 +926,7 @@ function matchdays(){
  const R=rs.find(r=>r.n===S.md),shown=R?(up?R.fx.filter(f=>f.state!=='FT'):R.fx):[],days=[...new Set(shown.map(f=>dayFmt(f.ko)))];if(S.day!=='All'&&!days.includes(S.day))S.day='All';
  DDH.ml=v=>{S.mdl=v;S.day='All';S.md=0;matchdays()};DDH.mn=v=>{S.md=+v;S.day='All';matchdays()};DDH.md2=v=>{S.day=v;matchdays()};DDH.mv=v=>{S.mdv=v;S.md=0;S.day='All';matchdays()};
  let last='';const fx=shown.filter(f=>S.day==='All'||dayFmt(f.ko)===S.day),lab=r=>lvLab(r.r)||('Round '+r.n);
- const note=up?`Matches that have not been played yet, round by round. Switch to Played for finished rounds.`:`Results of finished rounds. Switch to Upcoming for matches that have not been played yet. ${L?lvFresh(L):''}`;
- app.innerHTML=`<h2 style='font-size:26px;margin-bottom:10px'>Match days</h2>${lvNote(c)}<div class='note'>${note}</div><div class='bar'>${dd('ml',COUNTRIES,c,'League')}${dd('mv',[['played','Played'],['up','Upcoming']],up?'up':'played','Show')}${list.length?dd('mn',list.map(r=>[String(r.n),lab(r)]),S.md,up?'Upcoming':'Played'):''}${list.length?dd('md2',[['All','All days'],...days.map(d=>[d,d])],S.day,'Day'):''}</div>`+(list.length&&R?`<h3 class='day'>${adH(c)}, ${adH(lab(R))}</h3>`+fx.map(f=>{const d=dayFmt(f.ko),hd=d!==last?`<div class='sm' style='margin:8px 0 4px'>${d}</div>`:'';last=d;return hd+rowHtml(f)}).join(''):`<p class="sm">${up?'No upcoming matches in this competition right now.':'No matchday has finished yet.'}</p>`)}
+ app.innerHTML=`<h2 style='font-size:26px;margin-bottom:10px'>Match days</h2>${lvNote(c)}<div class='bar'>${dd('ml',COUNTRIES,c,'League')}${dd('mv',[['played','Played'],['up','Upcoming']],up?'up':'played','Show')}${list.length?dd('mn',list.map(r=>[String(r.n),lab(r)]),S.md,up?'Upcoming':'Played'):''}${list.length?dd('md2',[['All','All days'],...days.map(d=>[d,d])],S.day,'Day'):''}</div>`+(list.length&&R?`<h3 class='day'>${adH(c)}, ${adH(lab(R))}</h3>`+fx.map(f=>{const d=dayFmt(f.ko),hd=d!==last?`<div class='sm' style='margin:8px 0 4px'>${d}</div>`:'';last=d;return hd+rowHtml(f)}).join(''):`<p class="sm">${up?'No upcoming matches in this competition right now.':'No matchday has finished yet.'}</p>`)}
 const sampleFx=()=>{const now=Date.now(),all=[];COUNTRIES.forEach(c=>upFx(c,0).forEach(f=>all.push(f)));if(!all.length)return[];
  const soon=all.filter(f=>f.state==='LIVE'||f.ko.getTime()<now+36e5*30),pool=soon.length?soon:all.slice().sort((a,b)=>a.ko-b.ko).slice(0,10);
  const top=pool.map(f=>({f,c:predict(f).conf})).sort((a,b)=>b.c-a.c)[0].f,o=[top];
@@ -1071,7 +1075,8 @@ const AIPon=()=>{const o=AIP.filter(x=>!(CFG.offT||[]).includes(x.k));return o.l
 const adAdd=k=>{const v=(CFG.add||{})[k],t=AITOOLS.find(z=>z.k===k);return v&&!(t&&v===t.add)?'\n'+v:''};
 const annHtml=()=>{const A=CFG.ann;if(!A||!A.on||!A.text)return'';if(A.until&&Date.now()>new Date(A.until+'T23:59:59').getTime())return'';try{if(localStorage.getItem('ft_annx')===String(A.at))return''}catch(e){}return`<div class='ann ${A.type==='warn'?'warn':''}' role='status'><span>${adH(A.text)}</span><button type='button' class='annx' data-anx='${A.at}' aria-label='Dismiss'>×</button></div>`};
 document.addEventListener('click',e=>{const b=e.target.closest&&e.target.closest('[data-anx]');if(!b)return;try{localStorage.setItem('ft_annx',b.dataset.anx)}catch(x){}const n=b.closest('.ann');if(n)n.remove()});
-const maintHtml=()=>`<div class='mt'><div class='card'><h1>We’ll be back soon</h1><p class='sm' style='font-size:15px;white-space:pre-wrap'>${adH(FEAT().maintMsg||'Full Time AI is being updated. Please check back shortly.')}</p></div></div>`;
+const maintHtml=()=>`<div class='mt'><div class='card'><h1>We’ll be back soon</h1><p class='sm' style='font-size:15px;white-space:pre-wrap'>${adH(FEAT().maintMsg||'Full Time AI is being updated. Please check back shortly.')}</p></div><div style='text-align:center;margin-top:14px'><button type='button' id='mtAdm' class='sm' style='background:none;border:0;cursor:pointer;text-decoration:underline;color:inherit;opacity:.6;font:inherit;font-size:13px'>Admin sign in</button></div></div>`;
+const mtAdmin=()=>!!(S.adm||S.userMode||(CFG.admin&&adminSess()&&adminSess()===String(CFG.admin.email||'').toLowerCase()));
 const ADI={
  dash:`<svg viewBox='0 0 24 24'><rect x='3' y='3' width='7' height='9' rx='2'/><rect x='14' y='3' width='7' height='5' rx='2'/><rect x='14' y='12' width='7' height='9' rx='2'/><rect x='3' y='16' width='7' height='5' rx='2'/></svg>`,
  users:`<svg viewBox='0 0 24 24'><circle cx='9' cy='8' r='3.5'/><path d='M2.5 20c0-3.5 3-6 6.5-6s6.5 2.5 6.5 6'/><path d='M16 4.5a3.5 3.5 0 010 7M18 14c2.5.6 3.5 2.6 3.5 6'/></svg>`,
@@ -1149,7 +1154,7 @@ function admin(){
  const side=$('#ads'),ov=$('#adov'),open=v=>{side.classList.toggle('open',v);ov.hidden=!v};
  $('#adm').onclick=()=>open(true);ov.onclick=()=>open(false);
  document.querySelectorAll('.ad-nav [data-s]').forEach(b=>b.onclick=()=>{S.as=b.dataset.s;if(S.as==='ac')S.cs=S.cs||'acct';admin();window.scrollTo(0,0)});
- $('#adth').onclick=toggleTheme;$('#adlo').onclick=()=>{if(CLOUD())cloudOut();try{localStorage.removeItem('ft_admin_sess')}catch(e){}S.adm=0;S.userMode=0;history.replaceState(null,'','#home');show()};
+ $('#adth').onclick=toggleTheme;$('#adlo').onclick=()=>{if(CLOUD())cloudOut();try{localStorage.removeItem('ft_admin_sess')}catch(e){}S.adm=0;S.userMode=0;if(FEAT().maint)S.mtLogin=1;history.replaceState(null,'','#home');show()};
   $('#adUserMode').onclick=()=>{S.previewUser={username:'admin-preview',name:'Admin preview',type:'individual',created:Date.now(),fav:[],preds:[],logins:[],devs:[],set:{tf:'12'}};S.userMode=1;S.adm=0;S.tab='home';history.replaceState(null,'','#home');show()};
  ({dash:adDash,us:adUsers,ms:adMsgs,pl:adPolls,cp:adComps,an:adAnn,lg:adLog,ac:adCtl})[S.as]($('#adb'));ADL.fp='';setTimeout(()=>adTick(true),400)}
 
@@ -1336,7 +1341,7 @@ const setupGoogle=()=>{const box=$('#gbox');if(!box)return;
  if(CLOUD())cNonce().then(n=>gSetup(box,r=>cloudGoogle(r,gErr),gErr,n.hash));else gSetup(box,onGoogle,gErr)};
 /* ---------- AI panel: one prompt, five independent AIs, one General AI ---------- */
 const AIP=[{k:'chatgpt',n:'ChatGPT',lens:'Balanced model'},{k:'claude',n:'Claude',lens:'Defence and discipline'},{k:'gemini',n:'Gemini',lens:'Form and momentum'},{k:'grok',n:'Grok',lens:'Attack and team news'},{k:'perplexity',n:'Perplexity',lens:'Table strength'}];
-const poi=(lh,la)=>{lh=clamp(lh,.25,3.8);la=clamp(la,.25,3.8);const po=(k,l)=>{let p=Math.exp(-l);for(let i=1;i<=k;i++)p*=l/i;return p};let ph=0,pd=0,pa=0,best=[0,0,0];for(let i=0;i<=7;i++)for(let j=0;j<=7;j++){const p=po(i,lh)*po(j,la);i>j?ph+=p:i===j?pd+=p:pa+=p;if(p>best[2])best=[i,j,p]}const z=ph+pd+pa;return{ph:ph/z,pd:pd/z,pa:pa/z,score:[best[0],best[1]]}};
+const poi=(lh,la)=>{lh=clamp(lh,.25,3.8);la=clamp(la,.25,3.8);const po=(k,l)=>{let p=Math.exp(-l);for(let i=1;i<=k;i++)p*=l/i;return p};let ph=0,pd=0,pa=0,best=[0,0,0];for(let i=0;i<=7;i++)for(let j=0;j<=7;j++){const p=po(i,lh)*po(j,la);i>j?ph+=p:i===j?pd+=p:pa+=p;if(p>best[2])best=[i,j,p]}const z=ph+pd+pa;return{ph:ph/z,pd:pd/z,pa:pa/z,score:[Math.round(lh),Math.round(la)]}};
 const outOf=r=>[['Home win',r.ph],['Draw',r.pd],['Away win',r.pa]].sort((x,y)=>y[1]-x[1])[0][0];
 const outTxt=(o,hn,an)=>o==='Home win'?hn+' win':o==='Away win'?an+' win':'Draw';
 const ENG={
@@ -1347,12 +1352,11 @@ const ENG={
  perplexity:(H,A,P,fm)=>{const r=t=>t.pts/P+.3*(t.gf-t.ga)/P,d=r(H)-r(A);return[1.35*Math.exp(.28*d),1.1*Math.exp(-.28*d),'Table points per game and goal difference decide the call.']}};
 const runBuilt=(k,H,A,P)=>{const fm=x=>x.form.reduce((s,v)=>s+(v==='W'?1:v==='D'?.4:0),0)/5,[lh,la,why]=ENG[k](H,A,P,fm),r=poi(lh,la);r.out=outOf(r);r.conf=Math.max(r.ph,r.pd,r.pa);r.why=why;r.lh=lh;r.la=la;return r};
 const combine=res=>{const w=res.map(r=>r.conf*r.conf),sw=w.reduce((x,y)=>x+y,0),av=f=>res.reduce((t,r,i)=>t+r[f]*w[i],0)/sw;let ph=av('ph'),pd=av('pd'),pa=av('pa');const z=ph+pd+pa;ph/=z;pd/=z;pa/=z;const out=outOf({ph,pd,pa}),cnt={};
- res.forEach(r=>{const key=r.score.join('-');cnt[key]=(cnt[key]||0)+1});
- const cls=k=>{const [a,b]=k.split('-').map(Number);return a>b?'Home win':a===b?'Draw':'Away win'},cand=Object.entries(cnt).filter(([k])=>cls(k)===out).sort((x,y)=>y[1]-x[1]);
- const sc=(cand[0]?cand[0][0]:((res.find(r=>r.out===out)||res[0]).score.join('-'))).split('-').map(Number);
+ const wl0=res.filter(r=>r.lh!=null&&r.la!=null),avg=f=>res.reduce((t,r)=>t+f(r),0)/res.length;
+ const sc=wl0.length===res.length?[Math.round(avg(r=>r.lh)),Math.round(avg(r=>r.la))]:[Math.round(avg(r=>r.score[0])),Math.round(avg(r=>r.score[1]))];
  const wl=res.filter(r=>r.lh!=null),mean=f=>wl.length?wl.reduce((t,r)=>t+r[f],0)/wl.length:undefined;return{ph,pd,pa,out,conf:Math.max(ph,pd,pa),score:sc,lh:mean('lh'),la:mean('la'),agree:res.filter(r=>r.out===out).length,n:res.length}};
 const aiPrompt=(hn,an,comp,H,A,P)=>{const L=(t)=>`${t.t}: played ${P}, won ${t.w}, drawn ${t.d}, lost ${t.l}, goals scored ${t.gf}, conceded ${t.ga}, last five ${t.form.join('')}.`;
- return`You are a football analyst. Use only the data below.\nMatch: ${hn} vs ${an} (${comp}).\n${L(H)}\n${L(A)}\nReply with JSON only, no other text:\n{"outcome":"Home win" or "Draw" or "Away win","home_pct":number,"draw_pct":number,"away_pct":number,"score":"home-away","reasoning":"two short sentences"}`};
+ return`You are a football analyst. Use only the data below. Work out the score from the goals the home attack should score against the away defence and the goals the away attack should score against the home defence.\nMatch: ${hn} vs ${an} (${comp}).\n${L(H)}\n${L(A)}\nReply with JSON only, no other text:\n{"outcome":"Home win" or "Draw" or "Away win","home_pct":number,"draw_pct":number,"away_pct":number,"score":"home-away","reasoning":"two short sentences"}`};
 const genPrompt=(hn,an,res)=>`You are the General AI. Five analysts answered independently about ${hn} vs ${an}. Combine their answers into one response.\n${res.map(r=>`${(AIP.find(z=>z.k===r.k)||{}).n}: ${r.out}, home ${Math.round(r.ph*100)}%, draw ${Math.round(r.pd*100)}%, away ${Math.round(r.pa*100)}%, score ${r.score.join('-')}. ${r.why||''}`).join('\n')}\nReply with JSON only, no other text:\n{"outcome":"Home win" or "Draw" or "Away win","home_pct":number,"draw_pct":number,"away_pct":number,"score":"home-away","reasoning":"two short sentences"}`;
 const askLive=async(k,prompt)=>{const r=await fetch(CFG.aiUrl,{method:'POST',headers:{'Content-Type':'application/json',...(CFG.aiKey?{Authorization:'Bearer '+CFG.aiKey,apikey:CFG.aiKey}:{})},body:JSON.stringify({provider:k,prompt})});if(!r.ok)throw 0;const j=await r.json(),t=String(j.text||j.reply||''),m=t.match(/\{[\s\S]*\}/);if(!m)throw 0;const o=JSON.parse(m[0]);let ph=+o.home_pct,pd=+o.draw_pct,pa=+o.away_pct;if(![ph,pd,pa].every(isFinite)||ph<0||pd<0||pa<0)throw 0;const z=ph+pd+pa;if(!z)throw 0;ph/=z;pd/=z;pa/=z;const sc=String(o.score||'').match(/(\d+)\D+(\d+)/);if(!sc)throw 0;const q={ph,pd,pa,score:[+sc[1],+sc[2]],why:String(o.reasoning||'').slice(0,400)};q.out=outOf(q);q.conf=Math.max(ph,pd,pa);return q};
 const AIQ_PANEL='Five AIs analyse this match on their own, then the General AI combines them into one call. Pick the AI whose call you want to use.';
@@ -1376,8 +1380,16 @@ function apResults(a){const {hn,an,H,A,P}=a,mb=r=>[['Home side',r.ph],['Draw',r.
 <div class='aigen ${gsel?'sel':''}'><div class='aih'><b>General AI</b><span class='aitag'>${g.src==='Live'?'Live':'Built-in'}</span></div><div class='sm'>Combines all five answers into one.</div><div class='aio'>${outTxt(g.out,hn,an)}</div><div class='aisc'>${g.score[0]} – ${g.score[1]}</div>${mb(g)}<p><b>${g.agree===g.n?'All five AIs agree.':`${g.agree} of ${g.n} AIs back ${outTxt(g.out,hn,an)}.`}</b></p>${others.length?`<p class='sm'>Different view: ${others.map(r=>nm(r.k)+' ('+TR(outTxt(r.out,hn,an))+')').join(', ')}.</p>`:''}<p class='sm'>${g.src==='Live'&&g.why?adH(g.why):'The General AI weighs each answer by how sure that AI is, averages the probabilities, and picks the score most AIs agree on.'}</p><div class='sm'>Agreement ${Math.round(100*g.agree/g.n)}%</div><button class='chip' data-pk='general' aria-pressed='${gsel}'>${gsel?'Selected':'Use the General AI outcome'}</button></div>
 ${a.fell?`<p class='sm' style='margin-top:8px'>Some live replies could not be reached, so the built-in analysis was used for those.</p>`:''}
 ${ch?`<div class='aisave'><span>Your pick:</span> <b>${a.pick==='general'?'General AI':nm(a.pick)}</b> <span>${outTxt(ch.out,hn,an)}</span> <button class='chip' aria-pressed='true' id='aps'>Save to My predictions</button> <span class='sm' id='apm2'></span></div>`:''}`}
+function tpList(c){
+ const L=LV.lg[c];if(!L||!L.id)return'';
+ if(L.sc===null&&!L.scBusy){L.scBusy=1;lvScorers(c).finally(()=>{L.scBusy=0;if(S.tab==='teams'&&S.country===c&&!lvBusy())teams()})}
+ const as=S.tpm==='a',all=!!S.tpall,src=((as?L.as:L.sc)||[]).filter(p=>!as||p.a>0).slice().sort((a,b)=>as?(b.a-a.a||b.g-a.g):(b.g-a.g||b.a-a.a)),rows=all?src:src.slice(0,20);
+ DDH.tpm=v=>{S.tpm=v;teams()};
+ const head=`<h3 class='day' style='margin-top:24px'>${as?'Top assists':'Top scorers'}</h3><div class='bar'>${dd('tpm',[['g','Top scorers'],['a','Top assists']],as?'a':'g','List')}</div>`;
+ const body=rows.map((p,i)=>`<tr><td>${i+1}</td><td>${adH(p.n)}</td><td>${tmx(p.t)}</td><td>${as?'':'<b>'}${p.g}${as?'':'</b>'}</td><td>${as?'<b>'+p.a+'</b>':p.a}</td><td>${p.ap}</td></tr>`).join('')||`<tr><td colspan=6>${L.sc===null&&!L.scErr?'Loading…':(L.scErr?adH(L.scErr):'Nothing to show yet.')}</td></tr>`;
+ return head+`<div class='tw'><table><thead><tr><th>#</th><th>Player</th><th>Team</th><th>Goals</th><th>Assists</th><th>Apps</th></tr></thead><tbody>${body}</tbody></table></div>`+(src.length>20?`<button class='chip' style='margin-top:10px' onclick='S.tpall=!S.tpall;teams()'>${all?'Show top 20':'Show all '+src.length}</button>`:'')}
 function teams(){const c=S.country,R=roundOf(c,0),FN=S.fn||5;DDH.fn=v=>{S.fn=+v;teams()};
- app.innerHTML=`<h2 style='font-size:26px;margin-bottom:10px'>Teams and tables</h2>`+selectors('country','comp',dd('fn',[['5','Last 5 matches'],['10','Last 10 matches'],['15','Last 15 matches'],['20','Last 20 matches']],String(FN),'Form'))+(c==='UEFA Super Cup'?`<h3 class='day'>Super Cup final</h3>`+R.fx.map(rowHtml).join(''):banner(R)+`<div class='tw'><table><thead><tr><th>#</th><th>Team</th><th>P</th><th>W</th><th>D</th><th>L</th><th>GF</th><th>GA</th><th>GD</th><th>Pts</th><th>Last ${FN}</th></tr></thead><tbody>${table(R.T,R.name,R.P).map((s,i)=>`<tr class='${i<4?'zone':''}'><td>${i+1}</td><td>${tmx(s.t)}</td><td>${s.P}</td><td>${s.w}</td><td>${s.d}</td><td>${s.l}</td><td>${s.gf}</td><td>${s.ga}</td><td>${s.gf-s.ga>0?'+':''}${s.gf-s.ga}</td><td><b>${s.pts}</b></td><td>${formHtml(s.form)}</td></tr>`).join('')}</tbody></table></div><p class='sm' style='margin-top:8px'>Form shows each team\u2019s most recent finished matches in this competition, up to ${FN}, newest on the right. A team shows fewer if fewer have been played.</p>`)}
+ app.innerHTML=`<h2 style='font-size:26px;margin-bottom:10px'>Teams and tables</h2>`+selectors('country','comp',dd('fn',[['5','Last 5 matches'],['10','Last 10 matches'],['15','Last 15 matches'],['20','Last 20 matches']],String(FN),'Form'))+(c==='UEFA Super Cup'?`<h3 class='day'>Super Cup final</h3>`+R.fx.map(rowHtml).join(''):banner(R)+`<div class='tw'><table><thead><tr><th>#</th><th>Team</th><th>P</th><th>W</th><th>D</th><th>L</th><th>GF</th><th>GA</th><th>GD</th><th>Pts</th><th>Last ${FN}</th></tr></thead><tbody>${table(R.T,R.name,R.P).map((s,i)=>`<tr class='${i<4?'zone':''}'><td>${i+1}</td><td>${tmx(s.t)}</td><td>${s.P}</td><td>${s.w}</td><td>${s.d}</td><td>${s.l}</td><td>${s.gf}</td><td>${s.ga}</td><td>${s.gf-s.ga>0?'+':''}${s.gf-s.ga}</td><td><b>${s.pts}</b></td><td>${formHtml(s.form)}</td></tr>`).join('')}</tbody></table></div>${tpList(c)}`)}
 function ext(top,sw){
  const X=S.xv,v=id=>X[id]||'',E=Object.keys(KNOWN).filter(k=>!KNOWN[k].full&&!CFG.off.includes(k)),inp=(id,l,ph)=>`<label class='sm'>${l}<input id='${id}' placeholder='${ph||''}' value='${v(id).replace(/'/g,'&#39;')}'></label>`;
  if(!E.includes(X.x_lg))X.x_lg=E[0];
@@ -1415,7 +1427,7 @@ function ext(top,sw){
    if(!FEAT().panel){S.aix=fromAI({home_xg:lh,away_xg:la,home_form:X.x_hf,away_form:X.x_af,home_missing:mh,away_missing:ma,home_corners:isFinite(g('x_hc'))?g('x_hc'):null,away_corners:isFinite(g('x_ac'))?g('x_ac'):null,home_yellows:isFinite(g('x_hy'))?g('x_hy'):null,away_yellows:isFinite(g('x_ay'))?g('x_ay'):null,home_red_pct:isFinite(g('x_hr'))?g('x_hr')*100:null,away_red_pct:isFinite(g('x_ar'))?g('x_ar')*100:null,corners_known:isFinite(g('x_hc'))&&isFinite(g('x_ac')),cards_known:isFinite(g('x_hy'))&&isFinite(g('x_ay')),players},X.x_hn,X.x_an);draw(S.aix);return}
    const mkSt=(t,gf,ga,fo,miss)=>{const f=(fo||'').toUpperCase().replace(/[^WDL]/g,'').slice(-5).split('').filter(Boolean);while(f.length<5)f.unshift('D');return{t,P:1,w:0,d:0,l:0,gf,ga,pts:f.reduce((q,c)=>q+(c==='W'?3:c==='D'?1:0),0)/5,form:f,str:.5,fit:clamp(90-6*miss,60,95)}};
    const H=mkSt(X.x_hn,g('x_hgf'),g('x_hga'),X.x_hf,mh.length),A=mkSt(X.x_an,g('x_agf'),g('x_aga'),X.x_af,ma.length);
-   const pr=`You are a football analyst. Use only the data below.\nMatch: ${X.x_hn} (home) vs ${X.x_an} (away), ${X.x_lg}.\nHome form, last 5 (newest last): ${X.x_hf||'unknown'}\nAway form, last 5 (newest last): ${X.x_af||'unknown'}\nHome goals per game: scored ${X.x_hgf}, conceded ${X.x_hga}\nAway goals per game: scored ${X.x_agf}, conceded ${X.x_aga}\nHome missing key players: ${mh.join(', ')||'none'}\nAway missing key players: ${ma.join(', ')||'none'}\nHead-to-head: ${X.x_h2h||'unknown'}\nReply with JSON only, no other text:\n{"outcome":"Home win" or "Draw" or "Away win","home_pct":number,"draw_pct":number,"away_pct":number,"score":"home-away","reasoning":"two short sentences"}`;
+   const pr=`You are a football analyst. Use only the data below. Work out the score from the goals the home attack should score against the away defence and the goals the away attack should score against the home defence.\nMatch: ${X.x_hn} (home) vs ${X.x_an} (away), ${X.x_lg}.\nHome form, last 5 (newest last): ${X.x_hf||'unknown'}\nAway form, last 5 (newest last): ${X.x_af||'unknown'}\nHome goals per game: scored ${X.x_hgf}, conceded ${X.x_hga}\nAway goals per game: scored ${X.x_agf}, conceded ${X.x_aga}\nHome missing key players: ${mh.join(', ')||'none'}\nAway missing key players: ${ma.join(', ')||'none'}\nHead-to-head: ${X.x_h2h||'unknown'}\nReply with JSON only, no other text:\n{"outcome":"Home win" or "Draw" or "Away win","home_pct":number,"draw_pct":number,"away_pct":number,"score":"home-away","reasoning":"two short sentences"}`;
    const after=a=>{const r=a.pick==='general'?a.gen:a.res.find(x=>x.k===a.pick);if(!r)return;const l1=r.lh!=null?r.lh:lh,l2=r.la!=null?r.la:la,R=fromAI({home_xg:l1,away_xg:l2,home_win_pct:r.ph,draw_pct:r.pd,away_win_pct:r.pa,home_form:X.x_hf,away_form:X.x_af,home_missing:mh,away_missing:ma,home_corners:isFinite(g('x_hc'))?g('x_hc'):null,away_corners:isFinite(g('x_ac'))?g('x_ac'):null,home_yellows:isFinite(g('x_hy'))?g('x_hy'):null,away_yellows:isFinite(g('x_ay'))?g('x_ay'):null,home_red_pct:isFinite(g('x_hr'))?g('x_hr')*100:null,away_red_pct:isFinite(g('x_ar'))?g('x_ar')*100:null,corners_known:isFinite(g('x_hc'))&&isFinite(g('x_ac')),cards_known:isFinite(g('x_hy'))&&isFinite(g('x_ay')),players},X.x_hn,X.x_an),i=R.M.findIndex(m=>m[0]===r.score[0]&&m[1]===r.score[1]);if(i>0)R.M.unshift(R.M.splice(i,1)[0]);S.aix=R;draw(R)};
    S.aix=null;$('#out').innerHTML='';askPanel(X.x_hn,X.x_an,X.x_lg,H,A,1,'ext',after,pr)}};
  $('#ck').onclick=async()=>{X.x_hn=cleanName($('#x_hn').value);X.x_an=cleanName($('#x_an').value);$('#x_hn').value=X.x_hn;$('#x_an').value=X.x_an;X.x_ver='';S.aix=null;S.ap=null;$('#out').innerHTML='';$('#aipx').innerHTML='';const r=vet(X.x_hn,X.x_an,X.x_lg,1);
@@ -2111,9 +2123,11 @@ function acct(){const u=me(),em=S.userMode?'admin-preview':sess();u.set=u.set||{
 const TABS=[['home','Home'],['teams','Teams'],['players','Players'],['matchdays','Match days'],['analysis','AI analysis'],['polls','Polls'],['mine','My predictions'],['contact','Contact admin'],['acct','Settings']],V={home,teams,players,matchdays,analysis,admin,mine,acct,polls:pollsView,contact:contactView};
 Object.keys(V).forEach(k=>{const f=V[k];V[k]=function(){f.apply(this,arguments);const c=app.firstElementChild;if(k!=='admin'&&!(c&&c.tagName==='H2')){const t=(TABS.find(x=>x[0]===k)||[0,k==='admin'?'Admin':k])[1];app.insertAdjacentHTML('afterbegin',`<h2 class='pgt'>${TR(t)}</h2>`)}}});
 function show(){if(me()&&!location.hash)history.replaceState(null,'','#home');let t=location.hash.slice(1);if(t==='admin-setup'&&!CFG.admin&&!me()&&!CLOUD()){history.replaceState(null,'','#home');S.ag='setup';adGate();return}if(t==='admin'||t==='admin-setup'){history.replaceState(null,'','#home');t='home'}S.tab=V[t]?t:'home';document.body.classList.toggle('adm-on',S.tab==='admin');
- if(FEAT().maint&&S.tab!=='admin'){document.body.classList.add('mt-on');document.body.classList.remove('nd-on');$('#nav').innerHTML='';app.innerHTML=maintHtml();return}document.body.classList.remove('mt-on');
+ if(me())S.mtLogin=0;
+ if(FEAT().maint&&S.tab!=='admin'&&!mtAdmin()&&!(S.mtLogin&&!me())){if(!document.body.classList.contains('mt-on'))S.mtY=window.scrollY;document.body.classList.add('mt-on');document.body.classList.remove('nd-on');$('#nav').innerHTML='';const hm0=$('#hmenu');if(hm0)hm0.hidden=true;app.innerHTML=maintHtml();const ma=$('#mtAdm');if(ma)ma.onclick=()=>{S.mtLogin=1;show()};return}
+ {const wasMt=document.body.classList.contains('mt-on');document.body.classList.remove('mt-on');if(wasMt&&S.mtY!=null){const y=S.mtY;S.mtY=null;setTimeout(()=>window.scrollTo(0,y),80);setTimeout(()=>window.scrollTo(0,y),500)}}
  if(S.tm){clearInterval(S.tm);S.tm=0}document.body.classList.toggle('nd-on',!me()&&S.tab!=='admin');document.documentElement.lang=LANG();document.documentElement.dir=LANG()==='ar'?'rtl':'ltr';
- if(!me()&&S.tab!=='admin'){const as=adminSess();if(CFG.admin&&as&&as===String(CFG.admin.email||'').toLowerCase()){S.adm=1;admin();return}$('#nav').innerHTML='';$('#hmenu').hidden=true;landing();return}
+ if(!me()&&S.tab!=='admin'){const as=adminSess();if(CFG.admin&&as&&as===String(CFG.admin.email||'').toLowerCase()){S.adm=1;admin();return}$('#nav').innerHTML='';$('#hmenu').hidden=true;landing();if(FEAT().maint&&S.mtLogin){app.insertAdjacentHTML('afterbegin',`<div style='text-align:center;margin:10px 0'><button type='button' id='mtBk' class='sm' style='background:none;border:0;cursor:pointer;text-decoration:underline;color:inherit;font:inherit;font-size:14px'>\u2190 Back to the maintenance page</button></div>`);const bk=$('#mtBk');if(bk)bk.onclick=()=>{S.mtLogin=0;show()}}return}
  {const mb=$('#mbtn'),hm=$('#hmenu'),tabs=me()?TABS:[['home','Home']];
   hm.innerHTML=`<div class='mm-l'>${tabs.map(([k,l])=>`<button data-k='${k}' aria-selected='${k===S.tab}'>${TR(l)}${k==='contact'&&S.unread?`<span class='tbd'>${S.unread}</span>`:''}</button>`).join('')}</div>${me()?`<div class='mm-row mm-act'><button class='lp-b' id='lo3'>${S.userMode?'Return to admin panel':TR('Log out')}</button></div>`:''}`;
   hm.hidden=true;mb.setAttribute('aria-expanded','false');
@@ -2235,7 +2249,10 @@ async function cWatch(){if(!CLOUD()||document.hidden||S.adm||S.userMode)return;c
 setInterval(cWatch,45000);
 document.addEventListener('visibilitychange',()=>{if(!document.hidden){cWatch();adTick()}});
 /* keep the login page banner and maintenance switch fresh without a reload */
-setInterval(async()=>{if(!CLOUD()||document.hidden||me()||S.adm||S.tab==='admin')return;const a=JSON.stringify([CFG.ann,CFG.feat]);await cLoadCfg();if(JSON.stringify([CFG.ann,CFG.feat])!==a&&!lvBusy())show()},60000);
+let mtBusy=0;const mtCheck=async()=>{if(!CLOUD()||document.hidden||mtBusy||S.adm||S.tab==='admin')return;mtBusy=1;try{const was=!!FEAT().maint,a=JSON.stringify([CFG.ann,CFG.feat]);await cLoadCfg();const now=!!FEAT().maint;
+  if(now!==was){if(!S.userMode&&!mtAdmin())show()}
+  else if(JSON.stringify([CFG.ann,CFG.feat])!==a&&!me()&&!lvBusy())show()}catch(e){}finally{mtBusy=0}};
+setInterval(mtCheck,20000);document.addEventListener('visibilitychange',()=>{if(!document.hidden)mtCheck()});window.addEventListener('focus',mtCheck);
 
 /* ---- outside-team search (TheSportsDB, never API-Football) ---- */
 const TSQ={};let xsT=0;
@@ -2299,61 +2316,10 @@ function contactView(){
 /* ---- admin: account status helpers ---- */
 const adSt=(e,u)=>{if(u&&u.cloud){if(u.status==='banned')return'banned';if(u.status==='locked'&&(!u.lockedUntil||u.lockedUntil>Date.now()))return'locked';return'active'}return LOCK.get(e)?'locked':'active'};
 const adPill=(e,u)=>{const s=adSt(e,u);return(s==='banned'?`<span class='ad-pill red'>Banned</span>`:s==='locked'?`<span class='ad-pill red'>Locked</span>`:`<span class='ad-pill'>Active</span>`)+(u.google?` <span class='ad-pill'>Google</span>`:'')+(u.role==='admin'?` <span class='ad-pill'>Admin</span>`:'')};
-async function adSetStatus(e, st, until, reason) {
-  const u = USERS[e];
-
-  if (!u || !u.uid) {
-    return { ok: 0, m: 'This account cannot be changed.' };
-  }
-
-  if (u.role === 'admin') {
-    return { ok: 0, m: 'Admin accounts cannot be locked or banned.' };
-  }
-
-  const token = await cTok();
-
-  if (!token) {
-    return { ok: 0, m: 'Your session has expired. Please sign in again.' };
-  }
-
-  const actions = {
-    banned: 'ban',
-    active: u.status === 'banned' ? 'unban' : 'unlock',
-    locked: 'lock'
-  };
-
-  const action = actions[st];
-
-  if (!action) {
-    return { ok: 0, m: 'Invalid account action.' };
-  }
-
-  const r = await cReq('/functions/v1/admin-user-status', {
-    method: 'POST',
-    token,
-    body: {
-      user_id: u.uid,
-      action,
-      locked_until: action === 'lock' && until
-        ? new Date(until).toISOString()
-        : null,
-      reason: reason || ''
-    }
-  });
-
-  if (!r.ok || !r.json || !r.json.ok) {
-    return {
-      ok: 0,
-      m: r.json?.error || 'The server refused the account status change.'
-    };
-  }
-
-  u.status = st;
-  u.lockedUntil = until || 0;
-  u.sreason = reason || '';
-
-  return { ok: 1 };
-}
+async function adSetStatus(e,st,until,reason){const u=USERS[e];if(!u||!u.uid)return{ok:0,m:'This account cannot be changed.'};if(u.role==='admin')return{ok:0,m:'Admin accounts cannot be locked or banned.'};
+ const r=await sbq('/rest/v1/profiles?id=eq.'+u.uid,{method:'PATCH',body:{status:st,locked_until:until?new Date(until).toISOString():null,status_reason:reason||null},headers:{Prefer:'return=representation'}});
+ if(!r.ok||!Array.isArray(r.json)||!r.json.length)return{ok:0,m:sbMissing(r)?'The database is missing the new columns. Run update.sql in Supabase first.':'The database refused the change. Make sure update.sql was run and you are signed in as admin.'};
+ u.status=st;u.lockedUntil=until||0;u.sreason=reason||'';return{ok:1}}
 function adDrawerCloud(e,redo){const u=USERS[e],d=$('#adr'),ov=$('#adov2');if(!u)return;
  const s=adSt(e,u),isA=u.role==='admin',L=(u.logins||[]).slice(-10).reverse(),close=()=>{d.hidden=true;ov.hidden=true};
  d.hidden=false;ov.hidden=false;ov.onclick=close;
