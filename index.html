@@ -2299,10 +2299,61 @@ function contactView(){
 /* ---- admin: account status helpers ---- */
 const adSt=(e,u)=>{if(u&&u.cloud){if(u.status==='banned')return'banned';if(u.status==='locked'&&(!u.lockedUntil||u.lockedUntil>Date.now()))return'locked';return'active'}return LOCK.get(e)?'locked':'active'};
 const adPill=(e,u)=>{const s=adSt(e,u);return(s==='banned'?`<span class='ad-pill red'>Banned</span>`:s==='locked'?`<span class='ad-pill red'>Locked</span>`:`<span class='ad-pill'>Active</span>`)+(u.google?` <span class='ad-pill'>Google</span>`:'')+(u.role==='admin'?` <span class='ad-pill'>Admin</span>`:'')};
-async function adSetStatus(e,st,until,reason){const u=USERS[e];if(!u||!u.uid)return{ok:0,m:'This account cannot be changed.'};if(u.role==='admin')return{ok:0,m:'Admin accounts cannot be locked or banned.'};
- const r=await sbq('/rest/v1/profiles?id=eq.'+u.uid,{method:'PATCH',body:{status:st,locked_until:until?new Date(until).toISOString():null,status_reason:reason||null},headers:{Prefer:'return=representation'}});
- if(!r.ok||!Array.isArray(r.json)||!r.json.length)return{ok:0,m:sbMissing(r)?'The database is missing the new columns. Run update.sql in Supabase first.':'The database refused the change. Make sure update.sql was run and you are signed in as admin.'};
- u.status=st;u.lockedUntil=until||0;u.sreason=reason||'';return{ok:1}}
+async function adSetStatus(e, st, until, reason) {
+  const u = USERS[e];
+
+  if (!u || !u.uid) {
+    return { ok: 0, m: 'This account cannot be changed.' };
+  }
+
+  if (u.role === 'admin') {
+    return { ok: 0, m: 'Admin accounts cannot be locked or banned.' };
+  }
+
+  const token = await cTok();
+
+  if (!token) {
+    return { ok: 0, m: 'Your session has expired. Please sign in again.' };
+  }
+
+  const actions = {
+    banned: 'ban',
+    active: u.status === 'banned' ? 'unban' : 'unlock',
+    locked: 'lock'
+  };
+
+  const action = actions[st];
+
+  if (!action) {
+    return { ok: 0, m: 'Invalid account action.' };
+  }
+
+  const r = await cReq('/functions/v1/admin-user-status', {
+    method: 'POST',
+    token,
+    body: {
+      user_id: u.uid,
+      action,
+      locked_until: action === 'lock' && until
+        ? new Date(until).toISOString()
+        : null,
+      reason: reason || ''
+    }
+  });
+
+  if (!r.ok || !r.json || !r.json.ok) {
+    return {
+      ok: 0,
+      m: r.json?.error || 'The server refused the account status change.'
+    };
+  }
+
+  u.status = st;
+  u.lockedUntil = until || 0;
+  u.sreason = reason || '';
+
+  return { ok: 1 };
+}
 function adDrawerCloud(e,redo){const u=USERS[e],d=$('#adr'),ov=$('#adov2');if(!u)return;
  const s=adSt(e,u),isA=u.role==='admin',L=(u.logins||[]).slice(-10).reverse(),close=()=>{d.hidden=true;ov.hidden=true};
  d.hidden=false;ov.hidden=false;ov.onclick=close;
