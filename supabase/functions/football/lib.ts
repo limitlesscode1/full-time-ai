@@ -138,15 +138,15 @@ export const assistsOf = (sc: any[]) => sc.filter((x) => x[5] > 0).sort((a, b) =
 export const afCrest = (afId: number) => `https://media.api-sports.io/football/teams/${afId}.png`;
 export function crestMap(teams: { id: number; name: string; crest: string }[], map: Record<number, { af_id: number | null; fd_crest: string | null }>) {
   const out: Record<string, string> = {};
-  for (const t of teams) { const m = map[t.id]; const u = m && m.af_id ? afCrest(m.af_id) : (m && m.fd_crest) || t.crest; if (u) out[t.name] = u; }
+  // the football-data.org badge belongs to the exact team id, so it is always the right club; the name-matched API-Football id is only a fallback
+  for (const t of teams) { const m = map[t.id]; const u = (m && m.fd_crest) || t.crest || (m && m.af_id ? afCrest(m.af_id) : ''); if (u) out[t.name] = u; }
   return out;
 }
-// find our team in a list of API-Football teams ([{id,name}])
+// find our team in a list of API-Football teams ([{id,name}]). Exact name only: guessing by "contains" picked the wrong clubs and national teams.
 export function matchTeam(list: { id: number; name: string }[], name: string): number | null {
   const k = normKey(name); if (!k) return null;
-  let hit = list.find((t) => normKey(t.name) === k);
-  if (!hit) hit = list.find((t) => { const x = normKey(t.name); return x.length >= 4 && k.length >= 4 && (x.includes(k) || k.includes(x)); });
-  if (!hit) { const c = normKey(cleanName(name)); hit = list.find((t) => normKey(t.name) === c || normKey(cleanName(t.name)) === c); }
+  const c = normKey(cleanName(name));
+  const hit = list.find((t) => normKey(t.name) === k) || list.find((t) => normKey(t.name) === c || normKey(cleanName(t.name)) === c);
   return hit ? hit.id : null;
 }
 
