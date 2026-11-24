@@ -19,14 +19,13 @@ export const COMPS: Comp[] = [
 
 export const MIN = 60000;
 export const T = {
-  matchesActive: 2 * MIN,      // active match competitions: check every 2 minutes
+  matchesActive: 2 * MIN,      // active match windows: refresh about every 2 minutes
   matchesIdle: 120 * MIN,      // nothing on: look every 2 hours
   tableIdle: 180 * MIN,        // tables: at least every 3 hours
   scorersIdle: 360 * MIN,      // top scorers: at least every 6 hours
   afterResult: 2 * MIN,        // a new result appeared: update table/players within ~2 minutes
   recheck: 15 * MIN,           // and once more 15 minutes later (the free plan can be late)
   errorBackoff: 10 * MIN,      // after an error wait 10 minutes before asking again
-  playingWindow: 120 * MIN,    // tolerate delayed provider status for up to two hours after kickoff
 };
 
 export const compByAf = (id: number) => COMPS.find((c) => c.af === id);
@@ -69,11 +68,12 @@ export function roundLabel(m: any, comp: Comp): string {
 }
 export function statusCode(raw: string, koMs: number, now: number): string {
   if (raw === 'FINISHED' || raw === 'AWARDED') return 'FT';
-  if (raw === 'IN_PLAY' || raw === 'PAUSED' || raw === 'LIVE') return 'LIVE';
+  if (raw === 'PAUSED') return 'HT';
+  if (raw === 'IN_PLAY' || raw === 'LIVE') return 'LIVE';
   if (raw === 'POSTPONED' || raw === 'SUSPENDED' || raw === 'CANCELLED') return 'PST';
-  // SCHEDULED / TIMED: the free plan can be late, so a game that has kicked off counts as "playing now"
-  if (koMs <= now && now <= koMs + T.playingWindow) return 'LIVE';
-  if (koMs < now - T.playingWindow) return 'UNK'; // old kickoff with no confirmed provider status: never call it upcoming
+  // Never infer that a match is live from kickoff time alone. A stale scheduled
+  // fixture becomes Result pending instead of incorrectly remaining Upcoming.
+  if (koMs < now - 4 * 60 * 60 * 1000) return 'UNK';
   return 'NS';
 }
 // cached row: [id, kickoffSeconds, homeId, homeName, awayId, awayName, homeGoals, awayGoals, RAW status, minute, round, leagueId]
@@ -85,11 +85,14 @@ export function buildFixtures(matches: any[], comp: Comp) {
     const ko = Date.parse(m.utcDate); if (!isFinite(ko)) continue;
     const done = m.status === 'FINISHED' || m.status === 'AWARDED';
     if (done) fin++;
-    const ft = (m.score && m.score.fullTime) || {};
+    const score = m.score || {};
+    // football-data.org can expose the current in-play score before the match is finished.
+    const ft = score.fullTime || score.regularTime || {};
+    const liveMinute = Number.isFinite(Number(m.minute)) ? Number(m.minute) : null;
     const hn = cleanName(m.homeTeam.name, m.homeTeam.shortName), an = cleanName(m.awayTeam.name, m.awayTeam.shortName);
     teams.set(m.homeTeam.id, { id: m.homeTeam.id, name: hn, crest: m.homeTeam.crest || '' });
     teams.set(m.awayTeam.id, { id: m.awayTeam.id, name: an, crest: m.awayTeam.crest || '' });
-    fx.push([m.id, Math.floor(ko / 1000), m.homeTeam.id, hn, m.awayTeam.id, an, ft.home ?? null, ft.away ?? null, m.status || 'SCHEDULED', m.minute ?? null, roundLabel(m, comp), comp.af]);
+    fx.push([m.id, Math.floor(ko / 1000), m.homeTeam.id, hn, m.awayTeam.id, an, ft.home ?? null, ft.away ?? null, m.status || 'SCHEDULED', liveMinute, roundLabel(m, comp), comp.af]);
     sched.push([Math.floor(ko / 1000), done ? 1 : 0]);
   }
   const now = Date.now() / 1000;
@@ -102,7 +105,7 @@ export function toSiteFixtures(rows: any[], from: string, to: string, now = Date
     const day = new Date(r[1] * 1000).toISOString().slice(0, 10);
     if ((from && day < from) || (to && day > to)) continue;
     const code = statusCode(r[8], r[1] * 1000, now);
-    out.push([r[0], r[1], r[2], r[3], r[4], r[5], (code === 'FT' || code === 'LIVE') ? r[6] : null, (code === 'FT' || code === 'LIVE') ? r[7] : null, code, r[9] ?? null, r[10], r[11]]);
+    out.push([r[0], r[1], r[2], r[3], r[4], r[5], code === 'UNK' || code === 'PST' || code === 'NS' ? null : r[6], code === 'UNK' || code === 'PST' || code === 'NS' ? null : r[7], code, r[9], r[10], r[11]]);
   }
   return out;
 }
@@ -156,7 +159,7 @@ export type CacheInfo = { at: number; meta: any };
 export type Task = { comp: Comp; kind: 'm' | 's' | 'p'; key: string; prio: number; reason: string; age: number };
 export function isActive(sched: any[] | undefined, now: number): boolean {
   const s = now / 1000;
-  return (sched || []).some(([ko, done]: number[]) => (done ? s < ko + 150 * 60 : ko <= s + 300 && s <= ko + 270 * 60));
+  return (sched || []).some(([ko, done]: number[]) => (done ? s < ko + 150 * 60 : ko <= s + 300 && s <= ko + 210 * 60));
 }
 export const keyOf = (kind: string, af: number, season: number) => `${kind}:${af}:${season}`;
 export function dueTasks(now: number, state: Record<string, CacheInfo>, comps: Comp[] = COMPS): Task[] {
