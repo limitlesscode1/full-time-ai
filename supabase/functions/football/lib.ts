@@ -19,14 +19,14 @@ export const COMPS: Comp[] = [
 
 export const MIN = 60000;
 export const T = {
-  matchesActive: 2 * MIN,      // active competitions: refresh fixtures about every 2 minutes
+  matchesActive: 2 * MIN,      // active match competitions: check every 2 minutes
   matchesIdle: 120 * MIN,      // nothing on: look every 2 hours
   tableIdle: 180 * MIN,        // tables: at least every 3 hours
   scorersIdle: 360 * MIN,      // top scorers: at least every 6 hours
   afterResult: 2 * MIN,        // a new result appeared: update table/players within ~2 minutes
   recheck: 15 * MIN,           // and once more 15 minutes later (the free plan can be late)
   errorBackoff: 10 * MIN,      // after an error wait 10 minutes before asking again
-  playingWindow: 140 * MIN,    // a match that has kicked off is shown as "playing now" for this long
+  playingWindow: 120 * MIN,    // tolerate delayed provider status for up to two hours after kickoff
 };
 
 export const compByAf = (id: number) => COMPS.find((c) => c.af === id);
@@ -73,6 +73,7 @@ export function statusCode(raw: string, koMs: number, now: number): string {
   if (raw === 'POSTPONED' || raw === 'SUSPENDED' || raw === 'CANCELLED') return 'PST';
   // SCHEDULED / TIMED: the free plan can be late, so a game that has kicked off counts as "playing now"
   if (koMs <= now && now <= koMs + T.playingWindow) return 'LIVE';
+  if (koMs < now - T.playingWindow) return 'UNK'; // old kickoff with no confirmed provider status: never call it upcoming
   return 'NS';
 }
 // cached row: [id, kickoffSeconds, homeId, homeName, awayId, awayName, homeGoals, awayGoals, RAW status, minute, round, leagueId]
@@ -88,7 +89,7 @@ export function buildFixtures(matches: any[], comp: Comp) {
     const hn = cleanName(m.homeTeam.name, m.homeTeam.shortName), an = cleanName(m.awayTeam.name, m.awayTeam.shortName);
     teams.set(m.homeTeam.id, { id: m.homeTeam.id, name: hn, crest: m.homeTeam.crest || '' });
     teams.set(m.awayTeam.id, { id: m.awayTeam.id, name: an, crest: m.awayTeam.crest || '' });
-    fx.push([m.id, Math.floor(ko / 1000), m.homeTeam.id, hn, m.awayTeam.id, an, ft.home ?? null, ft.away ?? null, m.status || 'SCHEDULED', null, roundLabel(m, comp), comp.af]);
+    fx.push([m.id, Math.floor(ko / 1000), m.homeTeam.id, hn, m.awayTeam.id, an, ft.home ?? null, ft.away ?? null, m.status || 'SCHEDULED', m.minute ?? null, roundLabel(m, comp), comp.af]);
     sched.push([Math.floor(ko / 1000), done ? 1 : 0]);
   }
   const now = Date.now() / 1000;
@@ -101,7 +102,7 @@ export function toSiteFixtures(rows: any[], from: string, to: string, now = Date
     const day = new Date(r[1] * 1000).toISOString().slice(0, 10);
     if ((from && day < from) || (to && day > to)) continue;
     const code = statusCode(r[8], r[1] * 1000, now);
-    out.push([r[0], r[1], r[2], r[3], r[4], r[5], (code === 'FT' || code === 'LIVE') ? r[6] : null, (code === 'FT' || code === 'LIVE') ? r[7] : null, code, null, r[10], r[11]]);
+    out.push([r[0], r[1], r[2], r[3], r[4], r[5], (code === 'FT' || code === 'LIVE') ? r[6] : null, (code === 'FT' || code === 'LIVE') ? r[7] : null, code, r[9] ?? null, r[10], r[11]]);
   }
   return out;
 }
@@ -128,65 +129,6 @@ export function buildStandings(j: any) {
   }
   return { rows, teams: [...teams.values()] };
 }
-/**
- * Overlay matches that are currently in progress, plus finished matches newer
- * than the official standings snapshot. This keeps the official table as the
- * base and avoids counting old completed fixtures twice.
- */
-export function liveStandings(rows: any[], fixtures: any[], standingsAt: number, now = Date.now()) {
-  const out = (rows || []).map((r) => [...r]);
-  const byId = new Map<number, any[]>();
-  for (const r of out) byId.set(Number(r[0]), r);
-  let changed = false;
-  const stats = (r: any[], side: 'home' | 'away') => {
-    const idx = side === 'home' ? 13 : 14;
-    const a = Array.isArray(r[idx]) ? [...r[idx]] : [r[3] || 0, 0, 0, 0, 0, 0];
-    while (a.length < 6) a.push(0);
-    return a;
-  };
-  for (const f of fixtures || []) {
-    const raw = String(f[8] || '');
-    const finished = raw === 'FINISHED' || raw === 'AWARDED';
-    const playing = ['IN_PLAY', 'PAUSED', 'LIVE'].includes(raw);
-    const started = Number(f[1]) * 1000 <= now;
-    const newerFinished = finished && Number(f[1]) * 1000 > standingsAt;
-    if ((!playing && !newerFinished) || !started || f[6] == null || f[7] == null) continue;
-    const h = byId.get(Number(f[2])), a = byId.get(Number(f[4]));
-    if (!h || !a || h === a) continue;
-    const hg = Number(f[6]), ag = Number(f[7]);
-    if (!Number.isFinite(hg) || !Number.isFinite(ag)) continue;
-    for (const [r, side, gf, ga] of [[h, 'home', hg, ag], [a, 'away', ag, hg]] as const) {
-      r[3] = Number(r[3] || 0) + 1;
-      r[7] = Number(r[7] || 0) + gf;
-      r[8] = Number(r[8] || 0) + ga;
-      if (gf > ga) { r[4] = Number(r[4] || 0) + 1; r[9] = Number(r[9] || 0) + 3; }
-      else if (gf === ga) { r[5] = Number(r[5] || 0) + 1; r[9] = Number(r[9] || 0) + 1; }
-      else r[6] = Number(r[6] || 0) + 1;
-      const split = stats(r, side);
-      split[0]++; split[4] += gf; split[5] += ga;
-      if (gf > ga) split[1]++; else if (gf === ga) split[2]++; else split[3]++;
-      r[side === 'home' ? 13 : 14] = split;
-    }
-    changed = true;
-  }
-  if (!changed) return { rows: out, provisional: false };
-  const groups = new Map<string, any[]>();
-  for (const r of out) {
-    const key = String(r[11] || '');
-    if (!groups.has(key)) groups.set(key, []);
-    groups.get(key)!.push(r);
-  }
-  for (const group of groups.values()) {
-    group.sort((a, b) => Number(b[9] || 0) - Number(a[9] || 0)
-      || (Number(b[7] || 0) - Number(b[8] || 0)) - (Number(a[7] || 0) - Number(a[8] || 0))
-      || Number(b[7] || 0) - Number(a[7] || 0)
-      || Number(a[2] || 999) - Number(b[2] || 999));
-    group.forEach((r, i) => { r[2] = i + 1; });
-  }
-  out.sort((a, b) => String(a[11] || '').localeCompare(String(b[11] || '')) || Number(a[2]) - Number(b[2]));
-  return { rows: out, provisional: true };
-}
-
 // [playerId, name, teamId, teamName, goals, assists, matchesPlayed]
 export function buildScorers(j: any) {
   return ((j && j.scorers) || []).map((s: any) => [s.player.id, s.player.name, s.team.id, cleanName(s.team.name, s.team.shortName), s.goals || 0, s.assists || 0, s.playedMatches || 0]);
@@ -214,7 +156,7 @@ export type CacheInfo = { at: number; meta: any };
 export type Task = { comp: Comp; kind: 'm' | 's' | 'p'; key: string; prio: number; reason: string; age: number };
 export function isActive(sched: any[] | undefined, now: number): boolean {
   const s = now / 1000;
-  return (sched || []).some(([ko, done]: number[]) => (done ? s < ko + 150 * 60 : ko <= s + 300 && s <= ko + 210 * 60));
+  return (sched || []).some(([ko, done]: number[]) => (done ? s < ko + 150 * 60 : ko <= s + 300 && s <= ko + 270 * 60));
 }
 export const keyOf = (kind: string, af: number, season: number) => `${kind}:${af}:${season}`;
 export function dueTasks(now: number, state: Record<string, CacheInfo>, comps: Comp[] = COMPS): Task[] {
