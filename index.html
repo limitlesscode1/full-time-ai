@@ -776,13 +776,39 @@ const lvFree=()=>!LV.plan||/free/i.test(LV.plan);
 const lvEvery=()=>18e5;
 const lvEnabled=()=>{const fl=(FT.liveLeagues||[]).filter(n=>!LGDROP.includes(n)),l=(CFG.liveLg&&CFG.liveLg.length)?CFG.liveLg:(fl.length?fl:LCD);return LC.map(x=>x[0]).filter(n=>l.includes(n))};
 const lvSeason=m=>m[4]==='cal'?new Date().getFullYear():SEASON();
-async function lvGet(path,params){if(!SB())return{ok:false,err:'The football data service is not connected.'};
- try{const u=new URL(FT.supabaseUrl.replace(/\/$/,'')+'/functions/v1/football');u.searchParams.set('path',path);u.searchParams.set('slim','1');Object.entries(params||{}).forEach(([k,v])=>u.searchParams.set(k,String(v)));
-  const r=await fetch(u,{headers:{apikey:FT.supabaseAnonKey,Authorization:'Bearer '+FT.supabaseAnonKey}});let j=null;try{j=await r.json()}catch(e){}
+async function lvGet(path,params){
+ if(!SB())return{ok:false,err:'The football data service is not connected.'};
+
+ try{
+  const u=new URL(FT.supabaseUrl.replace(/\/$/,'')+'/functions/v1/football');
+  u.searchParams.set('path',path);
+  u.searchParams.set('slim','1');
+  Object.entries(params||{}).forEach(([k,v])=>u.searchParams.set(k,String(v)));
+
+  const token=path==='status'?await cTok():FT.supabaseAnonKey;
+
+  if(!token)return{ok:false,err:'Please sign in to access football service status.'};
+
+  const r=await fetch(u,{
+   headers:{
+    apikey:FT.supabaseAnonKey,
+    Authorization:'Bearer '+token
+   }
+  });
+
+  let j=null;
+  try{j=await r.json()}catch(e){}
+
   if(!r.ok)return{ok:false,err:(j&&(j.error||j.message))||('The football data service answered with an error ('+r.status+').'),status:r.status};
+
   const er=j&&j.errors,has=Array.isArray(er)?er.length>0:er&&Object.keys(er).length>0;
   if(has)return{ok:false,err:(Array.isArray(er)?er:Object.values(er)).join(' '),api:1};
-  return{ok:true,data:j.response,asOf:j.asOf,site:j.site}}catch(e){return{ok:false,err:'Could not reach the football data service.'}}}
+
+  return{ok:true,data:j.response,asOf:j.asOf,site:j.site}
+ }catch(e){
+  return{ok:false,err:'Could not reach the football data service.'}
+ }
+}
 const lvFx=(a,name)=>{const s=LVS[a[8]];return{id:a[0],ko:new Date(a[1]*1000),hid:a[2],home:a[3],aid:a[4],away:a[5],hs:a[6]==null?0:a[6],as:a[7]==null?0:a[7],status:a[8],state:s||'UP',pp:!s,min:a[9],r:a[10]||'',comp:name,c:name,i:0}};
 const lvRow=r=>({id:r[0],t:r[1],rank:r[2],P:r[3],w:r[4],d:r[5],l:r[6],gf:r[7],ga:r[8],pts:r[9],form:String(r[10]||'').split('').filter(x=>'WDL'.includes(x)).slice(-5),grp:r[11]||'',desc:r[12]||'',home:r[13],away:r[14]});
 const lvLogo=id=>'https://media.api-sports.io/football/teams/'+id+'.png';
@@ -2316,18 +2342,26 @@ function contactView(){
 /* ---- admin: account status helpers ---- */
 const adSt=(e,u)=>{if(u&&u.cloud){if(u.status==='banned')return'banned';if(u.status==='locked'&&(!u.lockedUntil||u.lockedUntil>Date.now()))return'locked';return'active'}return LOCK.get(e)?'locked':'active'};
 const adPill=(e,u)=>{const s=adSt(e,u);return(s==='banned'?`<span class='ad-pill red'>Banned</span>`:s==='locked'?`<span class='ad-pill red'>Locked</span>`:`<span class='ad-pill'>Active</span>`)+(u.google?` <span class='ad-pill'>Google</span>`:'')+(u.role==='admin'?` <span class='ad-pill'>Admin</span>`:'')};
+
 async function adSetStatus(e,st,until,reason){
   const u=USERS[e];
 
-  if(!u||!u.uid)return{ok:0,m:'This account cannot be changed.'};
-  if(u.role==='admin')return{ok:0,m:'Admin accounts cannot be changed.'};
+  if(!u||!u.uid)
+    return{ok:0,m:'This account cannot be changed.'};
 
-  const token=await cTok();
-  if(!token)return{ok:0,m:'Session expired. Please sign in again.'};
+  if(u.role==='admin')
+    return{ok:0,m:'Admin accounts cannot be locked or banned.'};
 
-  const action=st==='banned'?'ban':
-    st==='locked'?'lock':
-    u.status==='banned'?'unban':'unlock';
+  const t=await cTok();
+
+  if(!t)
+    return{ok:0,m:'Your session has expired. Please sign in again.'};
+
+  const action={
+    banned:'ban',
+    locked:'lock',
+    active:u.status==='banned'?'unban':'unlock'
+  }[st];
 
   const body={
     user_id:u.uid,
@@ -2341,16 +2375,19 @@ async function adSetStatus(e,st,until,reason){
 
   const r=await cReq('/functions/v1/admin-user-status',{
     method:'POST',
-    token,
+    token:t,
     body
   });
 
   if(!r.ok){
-    return{ok:0,m:(r.json&&r.json.error)||'Account update failed.'};
+    return{
+      ok:0,
+      m:(r.json&&r.json.error)||'Could not update account status. Please try again.'
+    };
   }
 
   if(!r.json||!r.json.ok||!r.json.user){
-    return{ok:0,m:'Unexpected server response.'};
+    return{ok:0,m:'The server returned an unexpected response.'};
   }
 
   u.status=r.json.user.status;
@@ -2360,6 +2397,7 @@ async function adSetStatus(e,st,until,reason){
 
   return{ok:1};
 }
+
 function adDrawerCloud(e,redo){const u=USERS[e],d=$('#adr'),ov=$('#adov2');if(!u)return;
  const s=adSt(e,u),isA=u.role==='admin',L=(u.logins||[]).slice(-10).reverse(),close=()=>{d.hidden=true;ov.hidden=true};
  d.hidden=false;ov.hidden=false;ov.onclick=close;
