@@ -19,6 +19,52 @@ const CORS = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const send = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { ...CORS, 'Content-Type': 'application/json' } });
 
+const ADMIN_ID = '43f9b97f-957f-4ab7-85fc-b43d4f6399a3';
+
+async function verifyFootballAdmin(req: Request): Promise<Response | null> {
+  const authorization = req.headers.get('Authorization') || '';
+  const match = authorization.match(/^Bearer\s+(.+)$/i);
+  const token = match?.[1]?.trim();
+
+  if (!token) {
+    return send({ error: 'Authentication required' }, 401);
+  }
+
+  const anonKey = Deno.env.get('SUPABASE_ANON_KEY') || '';
+  if (!anonKey) {
+    console.error('SUPABASE_ANON_KEY is missing.');
+    return send({ error: 'Server authentication is not configured' }, 500);
+  }
+
+  const userClient = createClient(
+    Deno.env.get('SUPABASE_URL')!,
+    anonKey,
+    { auth: { persistSession: false, autoRefreshToken: false } }
+  );
+
+  const { data, error } = await userClient.auth.getUser(token);
+
+  if (error || !data.user) {
+    return send({ error: 'Invalid or expired session' }, 401);
+  }
+
+  if (data.user.id !== ADMIN_ID) {
+    return send({ error: 'Administrator access required' }, 403);
+  }
+
+  const { data: profile, error: profileError } = await sb
+    .from('profiles')
+    .select('role')
+    .eq('id', ADMIN_ID)
+    .maybeSingle();
+
+  if (profileError || !profile || profile.role !== 'admin') {
+    return send({ error: 'Administrator verification failed' }, 403);
+  }
+
+  return null;
+}
+
 /* ---------- small database helpers ---------- */
 async function getRow(key: string) {
   const { data } = await sb.from('fd_cache').select('key,payload,fetched_at,meta').eq('key', key).maybeSingle();
@@ -226,7 +272,11 @@ Deno.serve(async (req: Request) => {
       case 'players/topscorers': return send(await players(u, false));
       case 'players/topassists': return send(await players(u, true));
       case 'version': return send(await version());
-      case 'status': return send(await status());
+      case 'status': {
+  const denied = await verifyFootballAdmin(req);
+  if (denied) return denied;
+  return send(await status());
+}
       case 'tick': return send({ response: await tick() });
       case 'live': return send({ response: { fx: [] } });   // not used any more: match status now comes from the saved copy
       case 'teams': case 'leagues': return send({ response: [] });
