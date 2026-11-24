@@ -771,7 +771,7 @@ const LC=[
  ['Brasileirão Série A',71,'league','Brazil','cal']];
 const LCD=['UEFA Champions League','Premier League','La Liga','Bundesliga','Serie A','Ligue 1','Eredivisie','Primeira Liga','Championship'];
 const LV={plan:'',used:null,limit:null,statusErr:'',lg:{},loading:0,fp:'',site:null,liveAt:0,liveAsOf:0};
-const LVS={NS:'UP',TBD:'UP','1H':'LIVE',HT:'LIVE','2H':'LIVE',ET:'LIVE',BT:'LIVE',P:'LIVE',SUSP:'LIVE',INT:'LIVE',LIVE:'LIVE',FT:'FT',AET:'FT',PEN:'FT'};
+const LVS={NS:'UP',TBD:'UP',UNK:'UNK','1H':'LIVE',HT:'LIVE','2H':'LIVE',ET:'LIVE',BT:'LIVE',P:'LIVE',SUSP:'LIVE',INT:'LIVE',LIVE:'LIVE',FT:'FT',AET:'FT',PEN:'FT'};
 const lvFree=()=>!LV.plan||/free/i.test(LV.plan);
 const lvEvery=()=>18e5;
 const lvEnabled=()=>{const fl=(FT.liveLeagues||[]).filter(n=>!LGDROP.includes(n)),l=(CFG.liveLg&&CFG.liveLg.length)?CFG.liveLg:(fl.length?fl:LCD);return LC.map(x=>x[0]).filter(n=>l.includes(n))};
@@ -809,7 +809,7 @@ async function lvGet(path,params){
   return{ok:false,err:'Could not reach the football data service.'}
  }
 }
-const lvFx=(a,name)=>{const s=LVS[a[8]];return{id:a[0],ko:new Date(a[1]*1000),hid:a[2],home:a[3],aid:a[4],away:a[5],hs:a[6]==null?0:a[6],as:a[7]==null?0:a[7],status:a[8],state:s||'UP',pp:!s,min:a[9],r:a[10]||'',comp:name,c:name,i:0}};
+const lvFx=(a,name)=>{const s=LVS[a[8]];return{id:a[0],ko:new Date(a[1]*1000),hid:a[2],home:a[3],aid:a[4],away:a[5],hs:a[6]==null?null:a[6],as:a[7]==null?null:a[7],status:a[8],state:s||'UP',pp:a[8]==='PST',min:a[9],r:a[10]||'',comp:name,c:name,i:0}};
 const lvRow=r=>({id:r[0],t:r[1],rank:r[2],P:r[3],w:r[4],d:r[5],l:r[6],gf:r[7],ga:r[8],pts:r[9],form:String(r[10]||'').split('').filter(x=>'WDL'.includes(x)).slice(-5),grp:r[11]||'',desc:r[12]||'',home:r[13],away:r[14]});
 const lvLogo=id=>'https://media.api-sports.io/football/teams/'+id+'.png';
 function lvRounds(L){if(L._r)return L._r;const g=new Map();L.fx.forEach(f=>{const k=f.r||'Round';if(!g.has(k))g.set(k,[]);g.get(k).push(f)});
@@ -851,7 +851,7 @@ function lvLoad(name,force){const m=LC.find(x=>x[0]===name);if(!m)return Promise
   L.id=id;L.season=season;L.meta=(a.data&&a.data.lg)||null;L._r=null;L.fxAsOf=a.asOf||Date.now();L.stAsOf=b.asOf||0;
   L.cr=Object.assign({},(a.data&&a.data.cr)||{},(b.ok&&b.data&&b.data.cr)||{});
   L.fx=((a.data&&a.data.fx)||[]).map(x=>lvFx(x,name));
-  L.table=(b.ok&&b.data&&b.data.rows)?b.data.rows.map(lvRow):[];L.tableLive=!!(b.ok&&b.data&&b.data.provisional);
+  L.table=(b.ok&&b.data&&b.data.rows)?b.data.rows.map(lvRow):[];
   if(!b.ok&&!L.table.length)L.stErr=b.err;else L.stErr='';
   })().catch(e=>{L.err='Could not load this competition.';L.at=Date.now()}).finally(()=>{L.p=null;lvSyncData();if(LV.booted)lvRefreshSoon()});return L.p}
 async function lvScorers(name){const L=LV.lg[name];if(!L||!L.id)return;if(L.scAt&&Date.now()-L.scAt<(lvFree()?36e5:6e5))return;L.scAt=Date.now();
@@ -859,7 +859,7 @@ async function lvScorers(name){const L=LV.lg[name];if(!L||!L.id)return;if(L.scAt
  const mp=r=>(r.ok&&Array.isArray(r.data))?r.data.map(x=>({id:x[0],n:x[1],tid:x[2],t:x[3],g:x[4],a:x[5],ap:x[6]})):null;
  L.pAsOf=(a.ok&&a.asOf)||L.pAsOf||0;L.sc=mp(a);L.as=mp(b);L.scErr=(!a.ok?a.err:'')||(!b.ok?b.err:'');_PC.clear()}
 async function lvStatus(){const r=await lvGet('status',{});if(r.ok&&r.data){LV.fd=r.data;LV.plan=r.data.plan||'';LV.used=r.data.used;LV.limit=r.data.limit;LV.statusErr='';if(r.site)LV.site=r.site}else{LV.statusErr=r.err||''}}
-function lvMerge(a){const s=LVS[a[8]];for(const n of Object.keys(LV.lg)){const f=LV.lg[n].fx.find(x=>x.id===a[0]);if(f){f.status=a[8];f.state=s||'UP';f.pp=!s;f.hs=a[6]==null?0:a[6];f.as=a[7]==null?0:a[7];f.min=a[9];f.ko=new Date(a[1]*1000);return true}}return false}
+function lvMerge(a){const s=LVS[a[8]];for(const n of Object.keys(LV.lg)){const f=LV.lg[n].fx.find(x=>x.id===a[0]);if(f){f.status=a[8];f.state=s||'UP';f.pp=!s;f.hs=a[6]==null?null:a[6];f.as=a[7]==null?null:a[7];f.min=a[9];f.ko=new Date(a[1]*1000);return true}}return false}
 /* live scores: one shared request for every live match in the world (cached on the server), then one batch for matches that just ended */
 async function lvLiveTick(){const en=lvEnabled().map(n=>LV.lg[n]).filter(L=>L&&L.id);if(!en.length)return;const now=Date.now();
  if(!en.some(L=>L.fx.some(f=>f.state==='LIVE'||(f.state==='UP'&&!f.pp&&f.ko.getTime()<=now+3e5&&f.ko.getTime()>now-126e5))))return;
@@ -883,7 +883,7 @@ async function lvPoll(){if(!SB()||document.hidden)return;const before=lvFp();let
  await lvAll(false);if(lvFp()!==before||pc)lvRefresh()}
 const lvEmpty=()=>!COUNTRIES.length;
 const lvAgo=t=>t?new Date(t).toLocaleTimeString(LOC(),{hour:'2-digit',minute:'2-digit',hour12:H12()}):'';
-function lvFresh(L){const f=L&&L.fxAsOf?lvAgo(L.fxAsOf):'',t=L&&L.stAsOf?lvAgo(L.stAsOf):'',l=LV.liveAsOf?lvAgo(LV.liveAsOf):'';return`Football data from football-data.org. Matches as of ${f||'now'}${t?', table as of '+t:''}. Matches update about every 2 minutes while a competition is active. The live table recalculates from cached scores; official tables replace provisional standings after results are confirmed. Scorers and assists keep their slower refresh.`}
+function lvFresh(L){const f=L&&L.fxAsOf?lvAgo(L.fxAsOf):'',t=L&&L.stAsOf?lvAgo(L.stAsOf):'',l=LV.liveAsOf?lvAgo(LV.liveAsOf):'';return`Football data from football-data.org. Matches as of ${f||'now'}${t?', table as of '+t:''}. Matches update about every 5 minutes while a game is on, and tables and players a few minutes after a result.`}
 function lvNote(name){const L=LV.lg[name];if(!SB())return`<div class="note warn">Live football data is not connected yet. The site owner needs to connect the football data service.</div>`;
  if(L&&L.err)return`<div class="note warn">Live data for ${adH(name)} is not available right now: ${adH(L.err)}</div>`;return''}
 function lvEmptyView(){const names=lvEnabled();const errs=names.map(n=>LV.lg[n]&&LV.lg[n].err).filter(Boolean);
@@ -913,7 +913,7 @@ function predict0(f){const H=stats(f.home,f.c,0),A=stats(f.away,f.c,0),avg=lvAvg
  return{ph,pd,pa,ov,bt,score:[Math.round(lh),Math.round(la),po(Math.round(lh),lh)*po(Math.round(la),la)],call:o[0],conf:o[1],H,A,lh,la}}
 function sched(c,h,a){const L=LV.lg[c];if(!L)return null;const now=Date.now();const f=L.fx.filter(x=>!x.pp&&x.state!=='FT'&&(x.state==='LIVE'||x.ko.getTime()>now-3*36e5)&&((x.home===h&&x.away===a)||(x.home===a&&x.away===h))).sort((x,y)=>x.ko-y.ko)[0];return f?{m:lvRoundOf(c,f),ko:f.ko,f}:null}
 function favFx(t){const o=[];COUNTRIES.filter(c=>DATA[c].T.includes(t)).forEach(c=>{const f=upFx(c,0).find(x=>x.home===t||x.away===t);if(f)o.push({c,m:lvRoundOf(c,f),f})});return o.sort((a,b)=>new Date(a.f.ko)-new Date(b.f.ko))}
-function banner(R){const L=LV.lg[R.name];return lvNote(R.name)+(L&&L.tableLive?`<div class="note" role="status"><b>LIVE TABLE</b> · Provisional standings include current match scores and may change before the official table is confirmed.</div>`:'')}
+function banner(R){return lvNote(R.name)}
 function home(){
  if(!S.hcI){S.hcI=1;const d=me()&&me().set&&me().set.dl;if(d&&COUNTRIES.includes(d))S.hc=d}
  const cs=S.hc==='All'?COUNTRIES:[S.hc];let list=[];
@@ -978,7 +978,7 @@ function build(H0,A0){
 /* ---------- admin: Football data ---------- */
 function lvLine(m){const L=LV.lg[m[0]];if(!L)return'Not loaded yet.';if(L.p)return'Loading…';if(L.err)return'Problem: '+L.err;return`OK · ${L.fx.length} fixtures · ${L.table.length} teams in the table${L.meta?' · Source: '+L.meta.name+' ('+L.meta.country+') '+L.meta.season:''}`}
 function lvStatusHtml(){const n=lvEnabled().length,d=LV.fd;
- return`<h3 style='margin:0 0 6px'>Connection</h3><p class='sm' style='margin:0'>${!SB()?'Not connected. Add supabaseUrl and supabaseAnonKey in config.js and deploy the football function.':LV.statusErr?'The football service answered with: '+adH(LV.statusErr):`Data source: <b>${adH(LV.plan||'unknown')}</b>${d?` \u00B7 football-data.org calls today: <b>${d.fdToday}</b> (the limit is ${d.perMinute} a minute, the function keeps well below it) \u00B7 crest lookups today: <b>${d.afToday}</b>`:''}`}</p>${d?`<p class='sm' style='margin:8px 0 0'>Crests matched to API-Football: <b>${d.mapped}</b> of <b>${d.teams}</b> teams${d.crestKey?'':' (no API-Football key set, so football-data.org crests are used)'}. The others use the football-data.org crest.${d.tickAt?' Last refresh check: '+adH(lvAgo(d.tickAt))+'.':''}</p>${(d.errors&&d.errors.length)?`<p class='sm' style='margin:8px 0 0;color:var(--red)'>Recent problems: ${d.errors.map(adH).join(' \u00B7 ')}</p>`:''}`:''}<p class='sm' style='margin:8px 0 0'>${n} competition${n===1?'':'s'} switched on. Matches refresh about every 2 minutes while a competition is active and every 2 hours otherwise. Live tables recalculate from cached scores; official tables replace provisional standings after results are confirmed. Scorers and assists keep their slower refresh. Tables and players refresh a few minutes after new results.</p>`}
+ return`<h3 style='margin:0 0 6px'>Connection</h3><p class='sm' style='margin:0'>${!SB()?'Not connected. Add supabaseUrl and supabaseAnonKey in config.js and deploy the football function.':LV.statusErr?'The football service answered with: '+adH(LV.statusErr):`Data source: <b>${adH(LV.plan||'unknown')}</b>${d?` \u00B7 football-data.org calls today: <b>${d.fdToday}</b> (the limit is ${d.perMinute} a minute, the function keeps well below it) \u00B7 crest lookups today: <b>${d.afToday}</b>`:''}`}</p>${d?`<p class='sm' style='margin:8px 0 0'>Crests matched to API-Football: <b>${d.mapped}</b> of <b>${d.teams}</b> teams${d.crestKey?'':' (no API-Football key set, so football-data.org crests are used)'}. The others use the football-data.org crest.${d.tickAt?' Last refresh check: '+adH(lvAgo(d.tickAt))+'.':''}</p>${(d.errors&&d.errors.length)?`<p class='sm' style='margin:8px 0 0;color:var(--red)'>Recent problems: ${d.errors.map(adH).join(' \u00B7 ')}</p>`:''}`:''}<p class='sm' style='margin:8px 0 0'>${n} competition${n===1?'':'s'} switched on. Matches refresh about every 5 minutes while a game is on and every 2 hours otherwise. Tables and players refresh a few minutes after new results.</p>`}
 function lvAdminCard(){const en=lvEnabled();
  const rows=LC.map(m=>`<label title="${adH(m[0])}"><input type='checkbox' class='sw' data-lg="${adH(m[0])}" ${en.includes(m[0])?'checked':''}><span><strong>${adH(m[0])}</strong> <span class='sm'>${adH(m[3])}${m[2]==='cup'?' · cup':''}</span><br><span class='sm lvst' data-st="${adH(m[0])}">${en.includes(m[0])?adH(lvLine(m)):''}</span></span></label>`).join('');
  return`<div class='card' id='lvs'>${lvStatusHtml()}</div><div class='card' style='margin-top:14px'><h3 style='margin:0 0 4px'>Live competitions</h3><p class='sm' style='margin:0 0 8px'>Only ticked competitions appear in the app, with real fixtures, results, tables and top scorers. Each one uses data requests, so tick what you can afford. Changes are shared with all visitors.</p><div id='lvl' style='max-height:420px;overflow:auto'>${rows}</div><div style='display:flex;gap:8px;flex-wrap:wrap;margin-top:10px'><button class='chip' id='lvr'>Refresh now</button></div><div class='sm' id='lvm' style='margin-top:8px'></div></div><div style='margin-top:14px'></div>`}
@@ -999,8 +999,8 @@ const callText=(p,f)=>p.call==='Home win'?f.home+' to win':p.call==='Away win'?f
 function cardHtml(f){
  const p=predict(f),pc=x=>Math.round(x*100);
  return`<article class="card"><div class="top"><span>${f.comp}</span><span>${f.state==='LIVE'?'<b class="st live">Playing now</b>':f.pp?'Postponed':fmt(f.ko)}</span></div>
- <div class="vs"><b class="tm">${crest(f.home,'m')}<span>${f.home}</span></b><span class="score">${f.state==='UP'?p.score[0]+' – '+p.score[1]:f.state==='LIVE'?'– : –':(f.hs+' – '+f.as)}</span><b class="tm">${crest(f.away,'m')}<span>${f.away}</span></b></div>
- <div class="sm" style="text-align:center">${f.state==='UP'?'Predicted score':f.state==='LIVE'?'Playing now':'Full time'}</div>
+ <div class="vs"><b class="tm">${crest(f.home,'m')}<span>${f.home}</span></b><span class="score">${f.state==='UP'?p.score[0]+' – '+p.score[1]:f.state==='UNK'||f.hs==null||f.as==null?'—':(f.hs+' – '+f.as)}</span><b class="tm">${crest(f.away,'m')}<span>${f.away}</span></b></div>
+ <div class="sm" style="text-align:center">${f.state==='UP'?'Predicted score':f.state==='UNK'?'Result pending':f.state==='LIVE'?'Playing now':'Full time'}</div>
  <div class="pb"><i style="width:${pc(p.ph)}%;background:var(--acc)"></i><i style="width:${pc(p.pd)}%;background:#8A96A3"></i><i style="width:${pc(p.pa)}%;background:var(--amber)"></i></div>
  <div class="pl"><span>Home ${pc(p.ph)}%</span><span>Draw ${pc(p.pd)}%</span><span>Away ${pc(p.pa)}%</span></div>
  <div class="call"><span class="tag">${callText(p,f)}</span><span class="sm">Confidence ${pc(p.conf)}%</span></div>
@@ -1011,15 +1011,15 @@ function matchday(){
  const R=roundOf(S.country,S.comp);let last='';
  app.innerHTML=`<h2 style="font-size:26px;margin-bottom:10px">Match day</h2>`+selectors('country','comp')+banner(R)+
  R.fx.map(f=>{const d=dayFmt(f.ko),hd=d!==last?`<div class="day">${d}</div>`:'';last=d;
- const sc=f.state==='UP'?'v':f.state==='LIVE'?'– : –':`${f.hs} – ${f.as}`,t=f.ko.toLocaleTimeString(LOC(),{hour:'2-digit',minute:'2-digit',hour12:H12()});
- return hd+`<div class="row"><span class="sm">${t}</span><span class="h"><span class="tmx r"><span>${f.home}</span>${crest(f.home,'s')}</span></span><span class="s">${sc}</span><span><span class="tmx">${crest(f.away,'s')}<span>${f.away}</span></span></span><span class="st ${f.state==='LIVE'?'live':''}">${f.state==='UP'?(f.pp?'Postponed':'Upcoming'):f.state==='LIVE'?'Playing now':'Full time'}</span></div>`}).join('');
+ const sc=f.state==='UP'?'v':f.state==='UNK'||f.hs==null||f.as==null?'—':`${f.hs} – ${f.as}`,t=f.ko.toLocaleTimeString(LOC(),{hour:'2-digit',minute:'2-digit',hour12:H12()});
+ return hd+`<div class="row"><span class="sm">${t}</span><span class="h"><span class="tmx r"><span>${f.home}</span>${crest(f.home,'s')}</span></span><span class="s">${sc}</span><span><span class="tmx">${crest(f.away,'s')}<span>${f.away}</span></span></span><span class="st ${f.state==='LIVE'?'live':''}">${f.state==='UP'?'Upcoming':f.state==='UNK'?'Result pending':f.state==='LIVE'?'Playing now':f.state==='FT'?'Full time':'Postponed'}</span></div>`}).join('');
  wire('country','comp',matchday)}
 
 /* ---------- shell ---------- */
 
 
 
-const rowHtml=f=>{const sc=f.state==='UP'?'v':f.state==='LIVE'?'– : –':`${f.hs} – ${f.as}`,t=f.ko.toLocaleTimeString(LOC(),{hour:'2-digit',minute:'2-digit',hour12:H12()});return`<div class="row"><span class="sm">${t}</span><span class="h"><span class="tmx r"><span>${f.home}</span>${crest(f.home,'s')}</span></span><span class="s">${sc}</span><span><span class="tmx">${crest(f.away,'s')}<span>${f.away}</span></span></span><span class="st ${f.state==='LIVE'?'live':''}">${f.state==='UP'?(f.pp?'Postponed':'Upcoming'):f.state==='LIVE'?'Playing now':'Full time'}</span></div>`};
+const rowHtml=f=>{const sc=f.state==='UP'?'v':f.state==='UNK'||f.hs==null||f.as==null?'—':`${f.hs} – ${f.as}`,t=f.ko.toLocaleTimeString(LOC(),{hour:'2-digit',minute:'2-digit',hour12:H12()});return`<div class="row"><span class="sm">${t}</span><span class="h"><span class="tmx r"><span>${f.home}</span>${crest(f.home,'s')}</span></span><span class="s">${sc}</span><span><span class="tmx">${crest(f.away,'s')}<span>${f.away}</span></span></span><span class="st ${f.state==='LIVE'?'live':''}">${f.state==='UP'?'Upcoming':f.state==='UNK'?'Result pending':f.state==='LIVE'?'Playing now':f.state==='FT'?'Full time':'Postponed'}</span></div>`};
 
 
 const DDH={};
@@ -2519,7 +2519,9 @@ async function adTick(force){
 setInterval(adTick,10000);
 
 addEventListener('hashchange',show);addEventListener('pageshow',e=>{if(e.persisted)show()});(CLOUD()?cloudBoot():Promise.resolve()).catch(e=>console.warn('cloud boot',e)).then(()=>liveBoot()).catch(e=>console.warn('live boot',e)).then(()=>{const dt=document.getElementById('disc-t');if(dt)dt.innerHTML=DISC_LONG;show();trAll();crScan();if(S.flash){const e=$('#er');if(e){e.textContent=TR(S.flash);S.flash=''}}cWatch()});
-setInterval(lvPoll,60000);
+setInterval(lvPoll,20000);
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)lvPoll()});
+window.addEventListener('focus',()=>lvPoll());
 </script>
 
 <script>
