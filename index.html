@@ -872,7 +872,14 @@ async function lvGet(path,params){
  }
 }
 const lvFx=(a,name)=>{const s=LVS[a[8]];return{id:a[0],ko:new Date(a[1]*1000),hid:a[2],home:a[3],aid:a[4],away:a[5],hs:a[6]==null?null:a[6],as:a[7]==null?null:a[7],status:a[8],state:s||'UP',pp:a[8]==='PST',min:a[9],r:a[10]||'',comp:name,c:name,i:0}};
-function lvMatchClock(f){if(!f||f.state!=='LIVE')return'';const raw=String(f.status||'').toUpperCase();if(raw==='HT')return'HT';if(raw==='PAUSED'||raw==='INT')return'HT';const supplied=Number(f.min);if(f.min!==null&&f.min!==undefined&&Number.isFinite(supplied)&&supplied>0)return Math.floor(supplied)+"′";let m=Math.max(1,Math.floor((Date.now()-f.ko.getTime())/60000));if(m>=60)m-=15;if(m>90)return'90+'+"′";if(m>45)return'45+'+"′";return m+"′";}
+function lvMatchClock(f){if(!f||f.state!=='LIVE')return'';const raw=String(f.status||'').toUpperCase();if(raw==='HT'||raw==='PAUSED'||raw==='INT')return'HT';const supplied=Number(f.min);if(f.min!==null&&f.min!==undefined&&Number.isFinite(supplied)&&supplied>0)return Math.floor(supplied)+"′";
+ /* no minute from the data service: estimate from kick-off (45 min + stoppage, ~15 min break, then the second half) */
+ const e=Math.max(1,Math.floor((Date.now()-f.ko.getTime())/6e4));if(e<=45)return e+"′";if(e<=48)return'45+′';if(e<63)return'HT';const m=e-17;return m>90?'90+′':m+"′"}
+/* the clock is wrapped so it can tick on screen by itself, without redrawing the whole page */
+const lvClk=f=>`<span class="lvc" data-f="${f.id}">${lvMatchClock(f)}</span>`;
+function lvTickClocks(){if(document.hidden)return;const els=document.querySelectorAll('.lvc');if(!els.length)return;const m=new Map();Object.values(LV.lg).forEach(L=>L.fx.forEach(f=>m.set(String(f.id),f)));
+ els.forEach(el=>{const f=m.get(el.dataset.f);if(!f)return;const t=lvMatchClock(f);if(t&&el.textContent!==t)el.textContent=t})}
+setInterval(lvTickClocks,15000);
 const lvRow=r=>({id:r[0],t:r[1],rank:r[2],P:r[3],w:r[4],d:r[5],l:r[6],gf:r[7],ga:r[8],pts:r[9],form:String(r[10]||'').split('').filter(x=>'WDL'.includes(x)).slice(-5),grp:r[11]||'',desc:r[12]||'',home:r[13],away:r[14]});
 const lvLogo=id=>'https://media.api-sports.io/football/teams/'+id+'.png';
 function lvRounds(L){if(L._r)return L._r;const g=new Map();L.fx.forEach(f=>{const k=f.r||'Round';if(!g.has(k))g.set(k,[]);g.get(k).push(f)});
@@ -1118,9 +1125,9 @@ const callText=(p,f)=>p.call==='Home win'?f.home+' to win':p.call==='Away win'?f
 
 function cardHtml(f){
  const p=predict(f),pc=x=>Math.round(x*100);
- return`<article class="card"><div class="top"><span>${f.comp}</span><span>${f.state==='LIVE'?`<b class="st live">Playing now · ${lvMatchClock(f)}</b>`:f.pp?'Postponed':fmt(f.ko)}</span></div>
+ return`<article class="card"><div class="top"><span>${f.comp}</span><span>${f.state==='LIVE'?`<b class="st live">Playing now · ${lvClk(f)}</b>`:f.pp?'Postponed':fmt(f.ko)}</span></div>
  <div class="vs"><b class="tm">${crest(f.home,'m')}<span>${f.home}</span></b><span class="score">${f.state==='UP'?p.score[0]+' – '+p.score[1]:f.state==='UNK'||f.hs==null||f.as==null?'—':(f.hs+' – '+f.as)}</span><b class="tm">${crest(f.away,'m')}<span>${f.away}</span></b></div>
- <div class="sm" style="text-align:center">${f.state==='UP'?'Predicted score':f.state==='UNK'?'Result pending':f.state==='LIVE'?'Playing now · '+lvMatchClock(f):'Full time'}</div>
+ <div class="sm" style="text-align:center">${f.state==='UP'?'Predicted score':f.state==='UNK'?'Result pending':f.state==='LIVE'?'Playing now · '+lvClk(f):'Full time'}</div>
  <div class="pb"><i style="width:${pc(p.ph)}%;background:var(--acc)"></i><i style="width:${pc(p.pd)}%;background:#8A96A3"></i><i style="width:${pc(p.pa)}%;background:var(--amber)"></i></div>
  <div class="pl"><span>Home ${pc(p.ph)}%</span><span>Draw ${pc(p.pd)}%</span><span>Away ${pc(p.pa)}%</span></div>
  <div class="call"><span class="tag">${callText(p,f)}</span><span class="sm">Confidence ${pc(p.conf)}%</span></div>
@@ -1132,14 +1139,14 @@ function matchday(){
  app.innerHTML=`<h2 style="font-size:26px;margin-bottom:10px">Match day</h2>`+selectors('country','comp')+banner(R)+
  R.fx.map(f=>{const d=dayFmt(f.ko),hd=d!==last?`<div class="day">${d}</div>`:'';last=d;
  const sc=f.state==='UP'?'v':f.state==='UNK'||f.hs==null||f.as==null?'—':`${f.hs} – ${f.as}`,t=f.ko.toLocaleTimeString(LOC(),{hour:'2-digit',minute:'2-digit',hour12:H12()});
- return hd+`<div class="row"><span class="sm">${t}</span><span class="h"><span class="tmx r"><span>${f.home}</span>${crest(f.home,'s')}</span></span><span class="s">${sc}</span><span><span class="tmx">${crest(f.away,'s')}<span>${f.away}</span></span></span><span class="st ${f.state==='LIVE'?'live':''}">${f.state==='UP'?'Upcoming':f.state==='UNK'?'Result pending':f.state==='LIVE'?'Playing now · '+lvMatchClock(f):f.state==='FT'?'Full time':'Postponed'}</span></div>`}).join('');
+ return hd+`<div class="row"><span class="sm">${t}</span><span class="h"><span class="tmx r"><span>${f.home}</span>${crest(f.home,'s')}</span></span><span class="s">${sc}</span><span><span class="tmx">${crest(f.away,'s')}<span>${f.away}</span></span></span><span class="st ${f.state==='LIVE'?'live':''}">${f.state==='UP'?'Upcoming':f.state==='UNK'?'Result pending':f.state==='LIVE'?'Playing now · '+lvClk(f):f.state==='FT'?'Full time':'Postponed'}</span></div>`}).join('');
  wire('country','comp',matchday)}
 
 /* ---------- shell ---------- */
 
 
 
-const rowHtml=f=>{const sc=f.state==='UP'?'v':f.state==='UNK'||f.hs==null||f.as==null?'—':`${f.hs} – ${f.as}`,t=f.ko.toLocaleTimeString(LOC(),{hour:'2-digit',minute:'2-digit',hour12:H12()});return`<div class="row"><span class="sm">${t}</span><span class="h"><span class="tmx r"><span>${f.home}</span>${crest(f.home,'s')}</span></span><span class="s">${sc}</span><span><span class="tmx">${crest(f.away,'s')}<span>${f.away}</span></span></span><span class="st ${f.state==='LIVE'?'live':''}">${f.state==='UP'?'Upcoming':f.state==='UNK'?'Result pending':f.state==='LIVE'?'Playing now · '+lvMatchClock(f):f.state==='FT'?'Full time':'Postponed'}</span></div>`};
+const rowHtml=f=>{const sc=f.state==='UP'?'v':f.state==='UNK'||f.hs==null||f.as==null?'—':`${f.hs} – ${f.as}`,t=f.ko.toLocaleTimeString(LOC(),{hour:'2-digit',minute:'2-digit',hour12:H12()});return`<div class="row"><span class="sm">${t}</span><span class="h"><span class="tmx r"><span>${f.home}</span>${crest(f.home,'s')}</span></span><span class="s">${sc}</span><span><span class="tmx">${crest(f.away,'s')}<span>${f.away}</span></span></span><span class="st ${f.state==='LIVE'?'live':''}">${f.state==='UP'?'Upcoming':f.state==='UNK'?'Result pending':f.state==='LIVE'?'Playing now · '+lvClk(f):f.state==='FT'?'Full time':'Postponed'}</span></div>`};
 
 
 const DDH={};
