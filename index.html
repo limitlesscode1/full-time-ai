@@ -679,6 +679,47 @@ body.adm-on .ad-bar h2{min-width:0;overflow-wrap:anywhere}
  .ad-sw{flex-wrap:wrap}
  .fgrid{grid-template-columns:minmax(0,1fr)!important}
 }
+
+/* ===== v12: responsive polish (tables as cards, strength bar, header fit) ===== */
+.tw{scrollbar-width:thin;scrollbar-color:var(--line) transparent}
+.tw::-webkit-scrollbar{height:6px}.tw::-webkit-scrollbar-thumb{background:var(--line);border-radius:6px}.tw::-webkit-scrollbar-track{background:transparent}
+.sbar{display:inline-flex;align-items:center;gap:8px;white-space:nowrap;vertical-align:middle}
+.sbt{display:inline-block;flex:none;width:64px;height:6px;border-radius:4px;background:var(--line);overflow:hidden}
+.sbt i{display:block;height:100%;border-radius:4px;background:var(--acc)}
+.kp-brand,.kp-hr{flex:none}
+header nav#nav{flex:0 1 auto;min-width:0}
+body.nav-c header nav#nav{display:none!important}
+body.nav-c #mbtn{display:inline-flex!important}
+body.nav-c #hmenu:not([hidden]){display:block!important}
+body.nav-c #hmenu .mm-l{display:flex;flex-direction:column;gap:2px;border-bottom:1px solid rgba(255,255,255,.25);padding-bottom:8px}
+body.nav-c .kp-hr,body.nav-c header nav#nav+.kp-hr{margin-left:auto}
+body.nav-s1 header nav#nav{gap:2px;padding:5px}
+body.nav-s1 header nav#nav button{padding:8px 10px;font-size:14px}
+body.nav-s2 header nav#nav{gap:0;padding:4px}
+body.nav-s2 header nav#nav button{padding:7px 8px;font-size:13px}
+/* tables only scroll sideways: let the mouse wheel / touch still scroll the page up and down */
+.tw,.ad .tw{overscroll-behavior-x:contain;overscroll-behavior-y:auto}
+@media(max-width:780px){
+ .tw{overflow-x:hidden}
+ table.rt,table.rg{min-width:0!important;display:block;width:100%}
+ table.rt thead,table.rg thead{display:none}
+ table.rt tbody,table.rg tbody{display:block}
+ table.rt tr{grid-template-columns:repeat(auto-fill,minmax(84px,1fr))}
+ table.rt td,table.rg td{min-width:0;overflow-wrap:anywhere}
+ table.rt td.full{grid-column:1/-1}
+ table.rt td.sb{grid-column:span 2}
+ table.rt .sbar{display:flex;width:100%}
+ table.rt .sbt{flex:1;width:auto;min-width:36px}
+ table.rg tr{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:10px 12px;padding:12px 14px;border-bottom:1px solid var(--line)}
+ table.rg tr:last-child{border-bottom:0}
+ table.rg td{display:block;text-align:left!important;border:0;padding:0;white-space:normal;font-size:15px;width:auto;color:inherit}
+ table.rg td::before{content:attr(data-l);display:block;font-size:11px;line-height:1.2;color:var(--mute);font-weight:600;margin-bottom:3px}
+ table.rg td[data-l='']::before{display:none}
+ table.rg td.full{grid-column:1/-1}
+ table.rt tr.ec,table.rg tr.ec{display:block;padding:16px 14px;text-align:center}
+ table.rt tr.ec td,table.rg tr.ec td{position:static!important;display:block;text-align:center!important}
+ table.rt tr.ec td::before,table.rg tr.ec td::before{display:none}
+}
 </style>
 </head>
 <body>
@@ -688,8 +729,17 @@ body.adm-on .ad-bar h2{min-width:0;overflow-wrap:anywhere}
 <script>
 /* label table cells so wide tables can reflow into cards on small screens */
 (function(){var app=document.getElementById('app');if(!app)return;
-function enh(){app.querySelectorAll('.tw table').forEach(function(t){var hs=[].map.call(t.querySelectorAll('thead th'),function(x){return x.textContent.trim()});if(hs.length<8||hs[0]!=='#')return;t.classList.add('rt');t.querySelectorAll('tbody tr').forEach(function(r){[].forEach.call(r.children,function(td,i){if(!td.hasAttribute('data-l'))td.setAttribute('data-l',hs[i]||'')})})})}
+function enh(){app.querySelectorAll('table').forEach(function(t){if(t.closest('.ad'))return;var hs=[].map.call(t.querySelectorAll('thead th'),function(x){return x.textContent.trim()});if(!hs.length)return;t.classList.add(hs[0]==='#'?'rt':'rg');t.querySelectorAll('tbody tr').forEach(function(r){var one=r.children.length===1&&r.children[0].hasAttribute('colspan');if(one)r.classList.add('ec');[].forEach.call(r.children,function(td,i){if(!td.hasAttribute('data-l'))td.setAttribute('data-l',hs[i]||'');if(one)return;if(td.querySelector('.tmx')||!hs[i]&&i===r.children.length-1)td.classList.add('full');if(td.querySelector('.sbar'))td.classList.add('sb')})})})}
 new MutationObserver(enh).observe(app,{childList:true,subtree:true});enh()})();
+</script>
+<script>
+/* header: show the full tab bar only when every tab fits, otherwise use the menu button */
+(function(){var raf=0;function fit(){var b=document.body,nav=document.getElementById('nav');if(!nav)return;b.classList.remove('nav-c','nav-s1','nav-s2');if(!nav.children.length||innerWidth<=820)return;var cl=['nav-s1','nav-s2','nav-c'];for(var i=0;i<cl.length;i++){if(nav.scrollWidth<=nav.clientWidth+2)return;b.classList.add(cl[i])}}
+function q(){cancelAnimationFrame(raf);raf=requestAnimationFrame(fit)}
+addEventListener('resize',q);addEventListener('load',q);addEventListener('hashchange',q);
+if(document.fonts&&document.fonts.ready)document.fonts.ready.then(q);
+var nv=document.getElementById('nav');if(nv)new MutationObserver(q).observe(nv,{childList:true,subtree:true,characterData:true});
+new MutationObserver(q).observe(document.documentElement,{attributes:true,attributeFilter:['data-size','lang','dir','data-theme']});q()})();
 </script>
 <script>
 /* keep the dropdown menu fully on screen, right under its button */
@@ -824,7 +874,7 @@ const lvRoundOf=(c,f)=>{const L=LV.lg[c];if(!L)return 0;const r=lvRounds(L).find
 const lvLP=lg=>{const L=LV.lg[lg];if(!L||!L.table.length)return 1;const ps=L.table.map(r=>r.P).filter(Boolean);return ps.length?Math.max(1,Math.round(ps.reduce((a,b)=>a+b,0)/ps.length)):1};
 const lvAvg=lg=>{const L=LV.lg[lg];if(L&&L.table.length){const P=L.table.reduce((a,r)=>a+r.P,0),G=L.table.reduce((a,r)=>a+r.gf,0);if(P>0)return G/P}
  if(L){const d=L.fx.filter(f=>f.state==='FT');if(d.length)return d.reduce((a,f)=>a+f.hs+f.as,0)/(2*d.length)}return 1.35};
-function lvForm(L,t,r,n){n=n||5;const a=L?L.fx.filter(f=>f.state==='FT'&&(f.home===t||f.away===t)).sort((x,y)=>x.ko-y.ko).slice(-n).map(f=>{const me=f.home===t?f.hs:f.as,op=f.home===t?f.as:f.hs;return me>op?'W':me===op?'D':'L'}):[];return a.length?a:((r&&r.form)||[])}
+function lvForm(L,t,r,n){n=n||5;const a=typeof verifiedCompletedFixtures==='function'&&L?verifiedCompletedFixtures(L).filter(f=>f.home===t||f.away===t).slice(0,n).reverse().map(f=>{const me=f.home===t?f.hs:f.as,op=f.home===t?f.as:f.hs;return me>op?'W':me===op?'D':'L'}):[];return a.length?a:((r&&r.form)||[])}
 const lvLab=r=>{const m=/^(Regular Season|League Stage|Group Stage|Round)\s*-\s*(\d+)$/i.exec(r||'');return m?(/^Round/i.test(m[1])?'Round ':'Matchday ')+m[2]:(r||'')};
 const lvTeams=L=>L.table.length?L.table.map(r=>r.t):[...new Set(L.fx.flatMap(f=>[f.home,f.away]))];
 function lvSyncData(){
@@ -902,6 +952,40 @@ function roundOf0(c,i,md){const L=LV.lg[c];if(!L||!(L.fx.length||L.table.length)
  const P=L.table.length?Math.max(...L.table.map(x=>x.P)):0;
  return{name:c,N:R.n,P,fx:R.fx,done:R.fx.every(f=>f.state==='FT'||f.pp),last:R.fx.length?R.fx[R.fx.length-1].ko:new Date(),isCup:L.kind==='cup'&&!L.table.length,T:DATA[c]?DATA[c].T:lvTeams(L),label:R.r}}
 const table=(T,lg,P)=>{const L=LV.lg[lg];return L&&L.table.length?L.table.map(r=>({t:r.t,P:r.P,w:r.w,d:r.d,l:r.l,gf:r.gf,ga:r.ga,pts:r.pts,form:lvForm(L,r.t,r,S.fn||5),grp:r.grp,rank:r.rank})):[]};
+/* Verified factual evidence helpers: completed cached fixtures only; no outcome estimates. */
+function verifiedCompletedFixtures(L){
+ if(!L||!Array.isArray(L.fx))return[];
+ const ids=new Set(),signatures=new Set(),out=[];
+ const goal=v=>{if(v===null||v===undefined||String(v).trim()==='')return null;const n=Number(v);return Number.isInteger(n)&&n>=0?n:null};
+ for(const f of L.fx){
+  if(!f||f.state!=='FT'||f.pp||typeof f.home!=='string'||typeof f.away!=='string')continue;
+  const home=f.home.trim(),away=f.away.trim(),hs=goal(f.hs),as=goal(f.as);
+  const raw=f.ko instanceof Date?f.ko.getTime():new Date(f.ko).getTime();
+  if(!home||!away||home===away||hs===null||as===null||!Number.isFinite(raw)||raw<946684800000)continue;
+  const id=f.id==null?'':String(f.id),idKey=id?'id:'+id:'';
+  const sig=[home.toLowerCase(),away.toLowerCase(),raw,hs,as].join('|');
+  if((idKey&&ids.has(idKey))||signatures.has(sig))continue;
+  if(idKey)ids.add(idKey);signatures.add(sig);
+  out.push({...f,home,away,hs,as,_ko:raw});
+ }
+ return out.sort((a,b)=>b._ko-a._ko);
+}
+function factualTeamProfile(L,t){
+ const fx=verifiedCompletedFixtures(L).filter(f=>f.home===t||f.away===t),recent=fx.slice(0,5);
+ const form=recent.map(f=>{const h=f.home===t,me=h?f.hs:f.as,op=h?f.as:f.hs;return me>op?'W':me===op?'D':'L'});
+ const gf=recent.reduce((n,f)=>n+(f.home===t?f.hs:f.as),0),ga=recent.reduce((n,f)=>n+(f.home===t?f.as:f.hs),0);
+ const row=L&&L.table&&L.table.find(r=>r.t===t),fresh=age=>age==null?0:age<=6?1:age<=24?.5:0;
+ const fxAge=L&&L.fxAsOf&&Number.isFinite(+L.fxAsOf)?Math.max(0,(Date.now()-L.fxAsOf)/36e5):null,stAge=L&&L.stAsOf&&Number.isFinite(+L.stAsOf)?Math.max(0,(Date.now()-L.stAsOf)/36e5):null;
+ const coverage=Math.round((row?25:0)+(Math.min(5,recent.length)/5*50)+(fresh(fxAge)*15)+(fresh(stAge)*10));
+ return{form,gf,ga,n:recent.length,coverage};
+}
+function factualTeamSection(c){
+ const L=LV.lg[c],T=(DATA[c]&&DATA[c].T)||[];if(!L||!T.length)return '';
+ const rows=T.map(t=>({t,p:factualTeamProfile(L,t)})).sort((a,b)=>b.p.coverage-a.p.coverage||b.p.n-a.p.n||a.t.localeCompare(b.t));
+ const body=rows.map(({t,p})=>`<tr><td>${tmx(t)}</td><td>${p.n}/5</td><td>${p.n?formHtml(p.form):'—'}</td><td>${p.n?(p.gf/p.n).toFixed(2):'—'}</td><td>${p.n?(p.ga/p.n).toFixed(2):'—'}</td><td><b>${p.coverage}%</b></td></tr>`).join('');
+ return `<h3 class='day' style='margin-top:24px'>Recent team performance</h3><p class='sm'>Unique completed matches in the currently cached fixture window. Duplicate fixture records and invalid scores or dates are excluded. Goals per match and form use only the available recent sample. Coverage measures data availability and freshness; it is not a match-result probability or a guarantee of accuracy.</p><div class='tw'><table><thead><tr><th>Team</th><th>Matches</th><th>Recent form</th><th>GF / match</th><th>GA / match</th><th>Data coverage</th></tr></thead><tbody>${body}</tbody></table></div>`;
+}
+
 const upFx=(c,i)=>{const L=LV.lg[c];if(!L)return[];const now=Date.now(),live=f=>!f.pp&&(f.state==='LIVE'||(f.state==='UP'&&f.ko.getTime()>now-3*36e5));
  let a=L.fx.filter(f=>live(f)&&(f.state==='LIVE'||f.ko.getTime()<now+10*864e5));if(!a.length)a=L.fx.filter(live).sort((x,y)=>x.ko-y.ko).slice(0,8);return a.sort((x,y)=>x.ko-y.ko)};
 function predict0(f){const H=stats(f.home,f.c,0),A=stats(f.away,f.c,0),avg=lvAvg(f.c);
@@ -939,7 +1023,7 @@ function players(){
  const key={s:'st',g:'g',a:'a',gp:'gp',i:'pg',sh:'sh'}[S.pm]||'st',q=S.q.toLowerCase();
  const list=all.filter(p=>(S.ptm==='All'||p.t===S.ptm)&&(p.n+' '+p.t).toLowerCase().includes(q)).sort((a,b)=>b[key]-a[key]||b.g-a.g||b.a-a.a);
  DDH.pm=v=>{S.pm=v;players()};DDH.ptm=v=>{S.ptm=v;players()};
- const bar=v=>`<span style='display:inline-block;width:64px;height:6px;border-radius:4px;background:var(--line);vertical-align:middle;margin-right:8px'><i style='display:block;height:100%;width:${v}%;border-radius:4px;background:var(--acc)'></i></span><b>${v}</b>`;
+ const bar=v=>`<span class='sbar'><span class='sbt'><i style='width:${v}%'></i></span><b>${v}</b></span>`;
  app.innerHTML=`<h2 style='font-size:26px;margin-bottom:10px'>Players</h2>`+selectors('pcountry','pcomp',dd('ptm',[['All','All teams'],...T.map(t=>[t,t])],S.ptm,'Team')+dd('pm',[['s','Strength'],['g','Goals'],['a','Assists'],['gp','Goals per game'],['i','Goals + assists per game'],['sh','Share of team goals']],S.pm,'Sort by')+`<input id='pq' placeholder='Search player or team' value='${adH(S.q)}'>`)+lvNote(c)+
  `<div class='tw'><table><thead><tr><th>#</th><th>Player</th><th>Team</th><th title='0 to 100. Mixes goal involvement per game (goals plus 0.7 per assist) with total output, compared with the best players in this league.'>Strength</th><th>Apps</th><th>Goals</th><th>Assists</th><th>Goals per game</th><th>G+A per game</th><th>Team goals</th></tr></thead><tbody>${list.map((p,i)=>`<tr><td>${i+1}</td><td>${adH(p.n)}</td><td>${tmx(p.t)}</td><td style='white-space:nowrap'>${bar(p.st)}</td><td>${p.ap}</td><td><b>${p.g}</b></td><td>${p.a}</td><td>${p.ap?p.gp.toFixed(2):'-'}</td><td>${p.ap?((p.g+p.a)/p.ap).toFixed(2):'-'}</td><td>${tg(p.t)?Math.round(p.sh*100)+'%':'-'}</td></tr>`).join('')||`<tr><td colspan=10>${L&&L.sc===null&&!L.scErr?'Loading players…':(L&&L.scErr?adH(L.scErr):'No players to show.')}</td></tr>`}</tbody></table></div>`;
  $('#pq').oninput=e=>{S.q=e.target.value;const v=S.q;players();const q=$('#pq');q.focus();q.setSelectionRange(v.length,v.length)}}
@@ -1030,6 +1114,23 @@ function selectors(cKey,pKey,extra=''){DDH['lg-'+cKey]=v=>{S[cKey]=v;S[pKey]=0;i
 function wire(){}
 const MK=[['cs','Correct score'],['gl','Goals'],['oc','Outcome'],['co','Corners'],['cd','Cards'],['pl','Players']];
 
+/* Match evidence is read-only: competition-specific facts from the cached feed. */
+function analysisEvidenceHtml(comp,home,away){
+ const L=LV.lg[comp];if(!L||!Array.isArray(L.fx))return'';
+ const done=verifiedCompletedFixtures(L);
+ const recent=t=>done.filter(f=>f.home===t||f.away===t).slice(0,5);
+ const venue=(t,side)=>done.filter(f=>side==='home'?f.home===t:f.away===t).slice(0,5);
+ const stat=(arr,t)=>{let w=0,d=0,l=0,gf=0,ga=0;const form=[];arr.forEach(f=>{const h=f.home===t,m=h?f.hs:f.as,o=h?f.as:f.hs;gf+=m;ga+=o;if(m>o)w++;else if(m===o)d++;else l++;form.push(m>o?'W':m===o?'D':'L')});return{n:arr.length,w,d,l,gf,ga,form:form.join('')}};
+ const hs=stat(recent(home),home),as=stat(recent(away),away),hvs=stat(venue(home,'home'),home),avs=stat(venue(away,'away'),away);
+ const standing=t=>{const r=(L.table||[]).find(x=>x.t===t);if(!r)return'Unavailable';const vals=[r.P,r.pts,r.w,r.d,r.l,r.gf,r.ga];if(vals.some(v=>v!==null&&v!==undefined&&(!Number.isFinite(Number(v))||Number(v)<0)))return'Unavailable';const i=L.table.indexOf(r);return`#${r.rank||i+1} · ${r.pts} pts · ${r.P} played`};
+ const meetings=done.filter(f=>(f.home===home&&f.away===away)||(f.home===away&&f.away===home)).slice(0,5);
+ const avg=(n,g)=>n?(g/n).toFixed(2):'—';
+ const row=(t,x)=>`<tr><td>${adH(t)}</td><td>${x.n}/5</td><td>${x.form||'—'}</td><td>${avg(x.n,x.gf)}</td><td>${avg(x.n,x.ga)}</td><td>${standing(t)}</td></tr>`;
+ const age=L.fxAsOf?Math.max(0,Math.floor((Date.now()-L.fxAsOf)/36e5)):null;
+ const fresh=age===null?'Match-data update time unavailable':age<1?'Match data updated within the last hour':`Match data last updated ${age} hours ago`;
+ const split=(t,label,x)=>`${adH(t)} ${label}: ${x.n}/5 available matches · ${avg(x.n,x.gf)} scored / ${avg(x.n,x.ga)} conceded per match.`;
+ return `<div class='card' style='margin-top:12px'><h3 class='sm' style='margin:0 0 5px'>Verified competition evidence</h3><p class='sm'>Unique completed matches and standings from ${adH(comp)} only. A match must have a full-time status, valid non-negative integer scores and a valid kickoff date. Repeated fixture IDs and duplicate team/date/score records are counted once. This factual context is separate from the app’s outcome calculations.</p><div class='tw'><table><thead><tr><th>Team</th><th>Sample</th><th>Last results</th><th>GF / game</th><th>GA / game</th><th>Standing</th></tr></thead><tbody>${row(home,hs)}${row(away,as)}</tbody></table></div><p class='sm' style='margin:8px 0 4px'><b>Home / away split (up to five matches)</b></p><p class='sm'>${split(home,'at home',hvs)} ${split(away,'away',avs)}</p><p class='sm' style='margin:8px 0 4px'><b>Head-to-head in this competition</b></p><p class='sm'>${meetings.length?meetings.map(f=>`${adH(f.home)} ${f.hs}–${f.as} ${adH(f.away)} · ${fmt(f.ko)}`).join('<br>'):'No completed head-to-head meeting found in the currently cached competition fixtures.'}</p><p class='sm'>${fresh}. All samples show their actual available count; missing matches are not estimated or filled in.</p></div>`;
+}
 function draw(X){
  const R=X||S.ai,o=R.o,z=R.z,pc=x=>Math.round(x*100),mk=S.mk||'cs',H=R.H0,A=R.A0;
  const ov=(l,lam)=>{let s=0;for(let k=0;k<=Math.floor(l);k++)s+=R.po(k,lam);return 1-s};
@@ -1039,11 +1140,11 @@ function draw(X){
  let body='';
  if(mk==='cs')body=`<div class='card' style='margin-top:12px;text-align:center'><div class='sm'>Predicted correct score</div><div class='vs' style='margin-top:6px'><b class='tm'>${crest(H,'m')}<span>${H}</span></b><span class='score'>${R.M[0][0]} – ${R.M[0][1]}</span><b class='tm'>${crest(A,'m')}<span>${A}</span></b></div><div class='sm' style='margin-top:6px'>Chance of this exact score ${pc(R.M[0][2])}%</div></div>`+card('Most likely scorelines',bars(R.M.slice(0,6).map(m=>[`${H} ${m[0]} – ${m[1]} ${A}`,m[2]])));
  else if(mk==='gl')body=card('Goals',`<p class='sm'>Expected goals: ${H} ${R.lh.toFixed(2)}, ${A} ${R.la.toFixed(2)}, total ${(R.lh+R.la).toFixed(2)}</p>`+bars([['Over 0.5 goals',o.o05],['Over 1.5 goals',o.o15],['Over 2.5 goals',o.o25],['Over 3.5 goals',o.o35],['Both teams score',o.bt],['No goal for one side',1-o.bt],[H+' clean sheet',o.csH],[A+' clean sheet',o.csA]]));
- else if(mk==='oc'){const a=[[H+' win',o.ph/z],['Draw',o.pd/z],[A+' win',o.pa/z]].sort((x,y)=>y[1]-x[1])[0];body=card('Predicted outcome',`<p><b>${a[0]}</b> is the most likely result (${pc(a[1])}% chance).</p>`+bars([[H+' win',o.ph/z],['Draw',o.pd/z],[A+' win',o.pa/z],[H+' or draw',(o.ph+o.pd)/z],[A+' or draw',(o.pa+o.pd)/z],['Either team wins',(o.ph+o.pa)/z]]))+card('Form and fitness',`<div class='sm' style='display:flex;gap:8px;align-items:center;flex-wrap:wrap'>${H} ${formHtml(R.H.form)} ${R.H.fit&&!R.live?'fitness '+R.H.fit+'%':''}</div><div class='sm' style='display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:6px'>${A} ${formHtml(R.A.form)} ${R.A.fit&&!R.live?'fitness '+R.A.fit+'%':''}</div>${R.live?'':'<p class="sm">Missing key players: '+H+' ('+nm(R.mh)+'), '+A+' ('+nm(R.ma)+').</p>'}`)}
+ else if(mk==='oc'){const a=[[H+' win',o.ph/z],['Draw',o.pd/z],[A+' win',o.pa/z]].sort((x,y)=>y[1]-x[1])[0];body=card('Predicted outcome',`<p><b>${a[0]}</b> is the most likely result (${pc(a[1])}% chance).</p>`+bars([[H+' win',o.ph/z],['Draw',o.pd/z],[A+' win',o.pa/z],[H+' or draw',(o.ph+o.pd)/z],[A+' or draw',(o.pa+o.pd)/z],['Either team wins',(o.ph+o.pa)/z]]))+card('Recent form and squad information',`<div class='sm' style='display:flex;gap:8px;align-items:center;flex-wrap:wrap'>${H} ${formHtml(R.H.form)}</div><div class='sm' style='display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:6px'>${A} ${formHtml(R.A.form)}</div><p class='sm'>Player fitness information is not available in the connected data feed.</p>${R.live?'':'<p class="sm">Missing key players: '+H+' ('+nm(R.mh)+'), '+A+' ('+nm(R.ma)+').</p>'}`)}
  else if(mk==='co')body=R.cornersKnown===false?card('Corners','<p class="sm">Corner statistics were not included in the pasted reply. Paste each team’s average corners per match to generate a data-based estimate.</p>'):card('Corners',`<p class='sm'>Expected corners: ${H} ${R.cH.toFixed(1)}, ${A} ${R.cA.toFixed(1)}, total ${(R.cH+R.cA).toFixed(1)}. More corners likely for ${R.cH>=R.cA?H:A}.</p>`+bars([8.5,9.5,10.5,11.5].map(l=>['Over '+l+' corners',ov(l,R.cH+R.cA)])));
  else if(mk==='cd'){const y=R.yH+R.yA,rH=R.rH??0,rA=R.rA??0;body=R.cardsKnown===false?card('Cards','<p class="sm">Card statistics were not included in the pasted reply. Paste average yellow cards per match for both teams; red-card estimates will only appear when red-card rates are supplied.</p>'):card('Yellow cards',`<p class='sm'>Expected yellow cards: ${H} ${R.yH.toFixed(1)}, ${A} ${R.yA.toFixed(1)}, total ${y.toFixed(1)}</p>`+bars([2.5,3.5,4.5,5.5].map(l=>['Over '+l+' yellows',ov(l,y)])))+(R.rH!=null&&R.rA!=null?card('Red cards',bars([['Any red card',1-(1-rH)*(1-rA)],[H+' red card',rH],[A+' red card',rA]])):'')}
  else if(R.live)body=lvPlCard(R,card,pc);else body=card('Players to watch',`<p class='sm'>Chance to score and assist, using each player’s expected goals (xG) and expected assists (xA) per 90 minutes. Players ruled out are left out. </p><div class='tw'><table><thead><tr><th>#</th><th>Player</th><th>Anytime scorer</th><th>Assist</th><th>xG/90</th><th>xA/90</th><th>Goals</th><th>Rating</th><th>Status</th></tr></thead><tbody>${R.pl.map((p,i)=>`<tr><td>${i+1}</td><td><span class='tmx'>${crest(p.t,'s')}<span>${p.n} <span class='sm'>${p.t}</span></span></span></td><td><b>${pc(p.sc)}%</b></td><td>${pc(p.as)}%</td><td>${p.x90.toFixed(2)}</td><td>${p.a90.toFixed(2)}</td><td>${p.g}</td><td>${p.rating}</td><td>${p.st}</td></tr>`).join('')||'<tr><td colspan=9>Add key players in the match data to see this.</td></tr>'}</tbody></table></div>`);
- $('#out').innerHTML=`<div class='chips' id='mk' style='margin-top:14px'>${MK.filter(([k])=>!(R.noMk&&R.noMk.includes(k))).map(([k,l])=>`<button class='chip' aria-pressed='${k===mk}' data-k='${k}'>${l}</button>`).join('')}</div>`+body+`<p class='sm' style='margin-top:10px'>Estimates based on real season results and the data entered. Use them for analysis, not as a guarantee.</p>`;
+ $('#out').innerHTML=(S.tab==='analysis'&&S.lgx?analysisEvidenceHtml(S.lgx,H,A):'')+`<div class='chips' id='mk' style='margin-top:14px'>${MK.filter(([k])=>!(R.noMk&&R.noMk.includes(k))).map(([k,l])=>`<button class='chip' aria-pressed='${k===mk}' data-k='${k}'>${l}</button>`).join('')}</div>`+body+`<p class='sm' style='margin-top:10px'>Estimates based on real season results and the data entered. Use them for analysis, not as a guarantee.</p>`;
  document.querySelectorAll('#mk .chip').forEach(b=>b.onclick=()=>{S.mk=b.dataset.k;draw(R)});actBar(R)}
 /* ---------- competition checks ---------- */
 const isIntl=c=>CONT.includes(c)||!!(KNOWN[c]&&KNOWN[c].reg);
@@ -1414,7 +1515,7 @@ function tpList(c){
  const body=rows.map((p,i)=>`<tr><td>${i+1}</td><td>${adH(p.n)}</td><td>${tmx(p.t)}</td><td>${as?'':'<b>'}${p.g}${as?'':'</b>'}</td><td>${as?'<b>'+p.a+'</b>':p.a}</td><td>${p.ap}</td></tr>`).join('')||`<tr><td colspan=6>${L.sc===null&&!L.scErr?'Loading…':(L.scErr?adH(L.scErr):'Nothing to show yet.')}</td></tr>`;
  return head+`<div class='tw'><table><thead><tr><th>#</th><th>Player</th><th>Team</th><th>Goals</th><th>Assists</th><th>Apps</th></tr></thead><tbody>${body}</tbody></table></div>`+(src.length>20?`<button class='chip' style='margin-top:10px' onclick='S.tpall=!S.tpall;teams()'>${all?'Show top 20':'Show all '+src.length}</button>`:'')}
 function teams(){const c=S.country,R=roundOf(c,0),FN=S.fn||5;DDH.fn=v=>{S.fn=+v;teams()};
- app.innerHTML=`<h2 style='font-size:26px;margin-bottom:10px'>Teams and tables</h2>`+selectors('country','comp',dd('fn',[['5','Last 5 matches'],['10','Last 10 matches'],['15','Last 15 matches'],['20','Last 20 matches']],String(FN),'Form'))+(c==='UEFA Super Cup'?`<h3 class='day'>Super Cup final</h3>`+R.fx.map(rowHtml).join(''):banner(R)+`<div class='tw'><table><thead><tr><th>#</th><th>Team</th><th>P</th><th>W</th><th>D</th><th>L</th><th>GF</th><th>GA</th><th>GD</th><th>Pts</th><th>Last ${FN}</th></tr></thead><tbody>${table(R.T,R.name,R.P).map((s,i)=>`<tr class='${i<4?'zone':''}'><td>${i+1}</td><td>${tmx(s.t)}</td><td>${s.P}</td><td>${s.w}</td><td>${s.d}</td><td>${s.l}</td><td>${s.gf}</td><td>${s.ga}</td><td>${s.gf-s.ga>0?'+':''}${s.gf-s.ga}</td><td><b>${s.pts}</b></td><td>${formHtml(s.form)}</td></tr>`).join('')}</tbody></table></div>${tpList(c)}`)}
+ app.innerHTML=`<h2 style='font-size:26px;margin-bottom:10px'>Teams and tables</h2>`+selectors('country','comp',dd('fn',[['5','Last 5 matches'],['10','Last 10 matches'],['15','Last 15 matches'],['20','Last 20 matches']],String(FN),'Form'))+(c==='UEFA Super Cup'?`<h3 class='day'>Super Cup final</h3>`+R.fx.map(rowHtml).join(''):banner(R)+`<div class='tw'><table><thead><tr><th>#</th><th>Team</th><th>P</th><th>W</th><th>D</th><th>L</th><th>GF</th><th>GA</th><th>GD</th><th>Pts</th><th>Last ${FN}</th></tr></thead><tbody>${table(R.T,R.name,R.P).map((s,i)=>`<tr class='${i<4?'zone':''}'><td>${i+1}</td><td>${tmx(s.t)}</td><td>${s.P}</td><td>${s.w}</td><td>${s.d}</td><td>${s.l}</td><td>${s.gf}</td><td>${s.ga}</td><td>${s.gf-s.ga>0?'+':''}${s.gf-s.ga}</td><td><b>${s.pts}</b></td><td>${formHtml(s.form)}</td></tr>`).join('')}</tbody></table></div>${factualTeamSection(c)}${tpList(c)}`)}
 function ext(top,sw){
  const X=S.xv,v=id=>X[id]||'',E=Object.keys(KNOWN).filter(k=>!KNOWN[k].full&&!CFG.off.includes(k)),inp=(id,l,ph)=>`<label class='sm'>${l}<input id='${id}' placeholder='${ph||''}' value='${v(id).replace(/'/g,'&#39;')}'></label>`;
  if(!E.includes(X.x_lg))X.x_lg=E[0];
