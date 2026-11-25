@@ -2401,8 +2401,10 @@ async function cWatch(){if(!CLOUD()||document.hidden||S.adm||S.userMode)return;c
 setInterval(cWatch,45000);
 /* ---- site views + active users: counts every visitor, not just signed-in users ---- */
 const VID=(()=>{try{let v=localStorage.getItem('ft_vid');if(!v){v=rid();localStorage.setItem('ft_vid',v)}return v}catch(e){return rid()}})();
-function siteTrack(view){try{if(!SB()||S.adm||localStorage.getItem('ft_admin_sess')||(document.hidden&&!view))return}catch(e){return}
- cReq('/rest/v1/rpc/ft_track',{method:'POST',body:{p_vid:VID,p_view:!!view}})}
+async function siteTrack(view){try{if(!SB()||(document.hidden&&!view))return}catch(e){return}
+ let am=false,tok='';try{am=!!(S.adm||adminSess());if(CLOUD()&&CS.g()&&(me()||am))tok=(await cTok())||''}catch(e){}
+ if(!tok&&(!view||am))return;
+ cReq('/rest/v1/rpc/ft_track',{method:'POST',token:tok||undefined,body:{p_vid:VID,p_view:!!view&&!am}})}
 setTimeout(()=>{try{localStorage.setItem('ft_views',(+localStorage.getItem('ft_views')||0)+1)}catch(e){}siteTrack(true)},1500);
 setInterval(()=>siteTrack(false),60000);
 document.addEventListener('visibilitychange',()=>{if(!document.hidden)siteTrack(false)});
