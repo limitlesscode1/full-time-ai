@@ -2401,13 +2401,16 @@ async function cWatch(){if(!CLOUD()||document.hidden||S.adm||S.userMode)return;c
 setInterval(cWatch,45000);
 /* ---- site views + active users: counts every visitor, not just signed-in users ---- */
 const VID=(()=>{try{let v=localStorage.getItem('ft_vid');if(!v){v=rid();localStorage.setItem('ft_vid',v)}return v}catch(e){return rid()}})();
-async function siteTrack(view){try{if(!SB()||(document.hidden&&!view))return}catch(e){return}
- let am=false,tok='';try{am=!!(S.adm||adminSess());if(CLOUD()&&CS.g()&&(me()||am))tok=(await cTok())||''}catch(e){}
- if(!tok&&(!view||am))return;
- cReq('/rest/v1/rpc/ft_track',{method:'POST',token:tok||undefined,body:{p_vid:VID,p_view:!!view&&!am}})}
-setTimeout(()=>{try{localStorage.setItem('ft_views',(+localStorage.getItem('ft_views')||0)+1)}catch(e){}siteTrack(true)},1500);
-setInterval(()=>siteTrack(false),60000);
-document.addEventListener('visibilitychange',()=>{if(!document.hidden)siteTrack(false)});
+const D0=new Date().toISOString().slice(0,10);
+async function siteTrack(){try{if(!SB()||document.hidden)return}catch(e){return}
+ let am=false,tok='',id='v';try{am=!!(S.adm||adminSess());if(CLOUD()&&CS.g()&&(me()||am)){tok=(await cTok())||'';if(tok)id=CS.g().uid||'u'}}catch(e){}
+ const key=D0+'|'+id;let want=!am;try{want=!am&&localStorage.getItem('ft_vk')!==key}catch(e){}
+ if(!tok&&!want)return;
+ if(want){try{localStorage.setItem('ft_vk',key)}catch(e){}}
+ cReq('/rest/v1/rpc/ft_track',{method:'POST',token:tok||undefined,body:{p_vid:VID,p_view:want}})}
+setTimeout(()=>{try{if(localStorage.getItem('ft_vd')!==D0){localStorage.setItem('ft_vd',D0);localStorage.setItem('ft_views',(+localStorage.getItem('ft_views')||0)+1)}}catch(e){}siteTrack()},1500);
+setInterval(siteTrack,60000);
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)siteTrack()});
 /* ---- new version notice: when a new file is deployed, signed-in users get a Refresh button (never on the landing page) ---- */
 const UPD={base:'',pend:'',n:0,ready:0,hide:0,last:0};
 async function updSig(){const u=location.href.split('#')[0].split('?')[0]+'?_u='+Date.now();let r=await fetch(u,{method:'HEAD',cache:'no-store'});if(!r.ok)return'';
