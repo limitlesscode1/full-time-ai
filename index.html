@@ -727,6 +727,11 @@ body.nav-s2 header nav#nav button{padding:7px 8px;font-size:13px}
 #updbar .ub:disabled{opacity:.7;cursor:default}
 #updbar .ux{flex:none;background:none;border:0;color:var(--mute);font-size:14px;cursor:pointer;padding:6px 8px;border-radius:8px}
 @media(max-width:520px){#updbar{flex-wrap:wrap;justify-content:flex-end;width:calc(100vw - 24px)}#updbar span{flex:1 1 100%}}
+
+/* live table dot */
+.lvdot{display:inline-block;width:8px;height:8px;border-radius:50%;background:#e5484d;margin-left:8px;vertical-align:middle;animation:lvp 1.4s ease-in-out infinite}
+@keyframes lvp{50%{opacity:.3}}
+@media(prefers-reduced-motion:reduce){.lvdot{animation:none}}
 </style>
 </head>
 <body>
@@ -917,28 +922,51 @@ async function lvScorers(name){const L=LV.lg[name];if(!L||!L.id)return;if(L.scAt
  const mp=r=>(r.ok&&Array.isArray(r.data))?r.data.map(x=>({id:x[0],n:x[1],tid:x[2],t:x[3],g:x[4],a:x[5],ap:x[6]})):null;
  L.pAsOf=(a.ok&&a.asOf)||L.pAsOf||0;L.sc=mp(a);L.as=mp(b);L.scErr=(!a.ok?a.err:'')||(!b.ok?b.err:'');_PC.clear()}
 async function lvStatus(){const r=await lvGet('status',{});if(r.ok&&r.data){LV.fd=r.data;LV.plan=r.data.plan||'';LV.used=r.data.used;LV.limit=r.data.limit;LV.statusErr='';if(r.site)LV.site=r.site}else{LV.statusErr=r.err||''}}
-function lvMerge(a){const s=LVS[a[8]];for(const n of Object.keys(LV.lg)){const f=LV.lg[n].fx.find(x=>x.id===a[0]);if(f){f.status=a[8];f.state=s||'UP';f.pp=!s;f.hs=a[6]==null?null:a[6];f.as=a[7]==null?null:a[7];f.min=a[9];f.ko=new Date(a[1]*1000);return true}}return false}
+function lvMerge(a){const s=LVS[a[8]];for(const n of Object.keys(LV.lg)){const f=LV.lg[n].fx.find(x=>x.id===a[0]);if(f){const was=f.state,sg=()=>f.status+'|'+f.hs+'|'+f.as+'|'+f.min+'|'+f.ko.getTime(),b4=sg();f.status=a[8];f.state=s||'UP';f.pp=!s;f.hs=a[6]==null?null:a[6];f.as=a[7]==null?null:a[7];f.min=a[9];f.ko=new Date(a[1]*1000);if(was==='LIVE'&&f.state==='FT')lvAfterFt(n);return sg()!==b4}}return false}
+/* a match just ended: re-read that competition a few times so the official table catches up quickly */
+function lvAfterFt(n){const L=LV.lg[n];if(!L||L.ftT)return;L.ftT=1;[15e4,42e4,9e5].forEach((ms,i)=>setTimeout(()=>{if(i===2)L.ftT=0;lvLoad(n,true)},ms))}
+/* live table: the official table plus matches in play (and just-ended matches the official table has not counted yet) */
+function lvLiveRows(L){const rows=L.table,B=L.lt=L.lt||{},now=Date.now(),idx=new Map(),byId=new Map(),byN=new Map(),cur=new Map(),live=new Set();let any=false;
+ rows.forEach((r,i)=>{idx.set(r,i);if(r.id!=null)byId.set(r.id,r);byN.set(r.t,r);const c=Object.assign({},r);c._r=r;cur.set(r,c)});
+ const pick=(id,n)=>byId.get(id)||byN.get(n);
+ L.fx.forEach(f=>{const isL=f.state==='LIVE';let E=B[f.id];if(E&&now-E.t>432e5){delete B[f.id];E=null}
+  if(!isL&&!E)return;if(f.hs==null||f.as==null)return;
+  const h=pick(f.hid,f.home),a=pick(f.aid,f.away);if(!h||!a||h===a)return;
+  if(!E)E=B[f.id]={h:h.P,a:a.P,t:now};
+  const side=(r,base,gf,ga)=>{if(r.P!==base)return;const c=cur.get(r);c.P++;c.gf+=gf;c.ga+=ga;if(gf>ga){c.w++;c.pts+=3}else if(gf===ga){c.d++;c.pts+=1}else c.l++;any=true;if(isL)live.add(r)};
+  side(h,E.h,f.hs,f.as);side(a,E.a,f.as,f.hs)});
+ if(!any)return rows.map(r=>cur.get(r));
+ const better=(x,y)=>{if(x.pts!==y.pts)return x.pts>y.pts;const gx=x.gf-x.ga,gy=y.gf-y.ga;if(gx!==gy)return gx>gy;if(x.gf!==y.gf)return x.gf>y.gf;return idx.get(x._r)<idx.get(y._r)};
+ const G=new Map(),order=[];rows.forEach(r=>{const g=r.grp||'';if(!G.has(g)){G.set(g,[]);order.push(g)}G.get(g).push(r)});
+ const out=[];order.forEach(g=>{const list=G.get(g),moved=r=>cur.get(r).P!==r.P,base=list.filter(r=>!moved(r)).map(r=>cur.get(r));
+  list.filter(moved).map(r=>cur.get(r)).forEach(c=>{let k=base.findIndex(b=>better(c,b));if(k<0)k=base.length;base.splice(k,0,c)});
+  base.forEach((c,i)=>{c.rank=i+1;c.live=live.has(c._r);out.push(c)})});
+ return out}
 /* live scores: one shared request for every live match in the world (cached on the server), then one batch for matches that just ended */
-async function lvLiveTick(){const en=lvEnabled().map(n=>LV.lg[n]).filter(L=>L&&L.id);if(!en.length)return;const now=Date.now();
+async function lvLiveTick(quiet){const en=lvEnabled().map(n=>LV.lg[n]).filter(L=>L&&L.id);if(!en.length)return;const now=Date.now();
  if(!en.some(L=>L.fx.some(f=>f.state==='LIVE'||(f.state==='UP'&&!f.pp&&f.ko.getTime()<=now+3e5&&f.ko.getTime()>now-126e5))))return;
  const r=await lvGet('live',{});if(!r.ok||!r.data)return;LV.liveAsOf=r.asOf||Date.now();
  const ids=new Set(en.map(L=>L.id)),seen=new Set();let changed=false;
  (r.data.fx||[]).forEach(a=>{if(!ids.has(a[11]))return;seen.add(a[0]);if(lvMerge(a))changed=true});
  const gone=[];en.forEach(L=>L.fx.forEach(f=>{const t=f.ko.getTime();if(!seen.has(f.id)&&(f.state==='LIVE'||(f.state==='UP'&&!f.pp&&t<now-108e5&&t>now-432e5)))gone.push(f.id)}));
  if(gone.length){gone.sort((x,y)=>x-y);const r2=await lvGet('fixtures',{ids:gone.slice(0,20).join('-')});if(r2.ok&&r2.data&&r2.data.fx)r2.data.fx.forEach(a=>{if(lvMerge(a))changed=true})}
- if(changed){_RC.clear();_SC.clear();_PC.clear();lvRefresh()}}
+ if(changed){_RC.clear();_SC.clear();_PC.clear();if(!quiet)lvRefresh()}return changed}
 const lvAll=force=>Promise.all(lvEnabled().map(n=>lvLoad(n,force)));
 const lvFp=()=>Object.values(LV.lg).map(L=>L.fx.map(f=>f.id+f.status+f.hs+f.as+(f.state==='LIVE'?lvMatchClock(f):'')).join('')+(L.stAsOf||'')).join('|');
 function lvBusy(){const a=document.activeElement,t=a&&a.tagName;return t==='INPUT'||t==='TEXTAREA'||t==='SELECT'||!!document.querySelector('.ddl:not([hidden])')||!!S.adm}
 let lvT=0;function lvRefreshSoon(){clearTimeout(lvT);lvT=setTimeout(lvRefresh,300)}
 function lvReset(){Object.keys(DATA).forEach(k=>delete DATA[k]);COUNTRIES.length=0}
 async function liveBoot(){lvReset();if(!SB()){LV.booted=1;return}lvStatus();try{await Promise.race([lvAll(),new Promise(r=>setTimeout(r,4500))])}finally{LV.booted=1;lvSyncData()}}
-function lvRefresh(){lvSyncData();if(S.adm){if(S.as==='ac'&&S.cs==='fb'&&typeof lvAdminDraw==='function')lvAdminDraw();return}if(lvBusy())return;show();trAll()}
-async function lvPoll(){if(!SB()||document.hidden)return;const before=lvFp();let pc=0;const v=await lvGet('version',{});
- if(v.ok&&v.data){const jobs=[];lvEnabled().forEach(n=>{const L=LV.lg[n];if(!L||!L.id||L.p)return;const m=v.data.m&&v.data.m[L.id],s=v.data.s&&v.data.s[L.id],p=v.data.p&&v.data.p[L.id];
-   if((m&&m>(L.fxAsOf||0))||(s&&s>(L.stAsOf||0)))jobs.push(lvLoad(n,true));
-   if(p&&L.sc&&p>(L.pAsOf||0)){L.scAt=0;pc=1;jobs.push(lvScorers(n))}});await Promise.all(jobs)}
- await lvAll(false);if(lvFp()!==before||pc)lvRefresh()}
+function lvRefresh(){lvSyncData();if(S.adm){if(S.as==='ac'&&S.cs==='fb'&&typeof lvAdminDraw==='function')lvAdminDraw();return}if(lvBusy()){LV.dirty=1;return}LV.dirty=0;show();trAll()}
+async function lvPoll(){if(!SB()||document.hidden||LV.polling)return;LV.polling=1;
+ try{const before=lvFp();let pc=0;
+  await lvLiveTick(true).catch(()=>{});
+  const v=await lvGet('version',{});
+  if(v.ok&&v.data){const jobs=[];lvEnabled().forEach(n=>{const L=LV.lg[n];if(!L||!L.id||L.p)return;const m=v.data.m&&v.data.m[L.id],s=v.data.s&&v.data.s[L.id],p=v.data.p&&v.data.p[L.id];
+    if((m&&m>(L.fxAsOf||0))||(s&&s>(L.stAsOf||0)))jobs.push(lvLoad(n,true));
+    if(p&&L.sc&&p>(L.pAsOf||0)){L.scAt=0;pc=1;jobs.push(lvScorers(n))}});await Promise.all(jobs)}
+  await lvAll(false);if(lvFp()!==before||pc||LV.dirty)lvRefresh()}
+ finally{LV.polling=0}}
 const lvEmpty=()=>!COUNTRIES.length;
 const lvAgo=t=>t?new Date(t).toLocaleTimeString(LOC(),{hour:'2-digit',minute:'2-digit',hour12:H12()}):'';
 function lvFresh(L){const f=L&&L.fxAsOf?lvAgo(L.fxAsOf):'',t=L&&L.stAsOf?lvAgo(L.stAsOf):'',l=LV.liveAsOf?lvAgo(LV.liveAsOf):'';return`Football data from football-data.org. Matches as of ${f||'now'}${t?', table as of '+t:''}. Matches update about every 2 minutes while a game is on, and tables and players a few minutes after a result.`}
@@ -958,7 +986,7 @@ function roundOf0(c,i,md){const L=LV.lg[c];if(!L||!(L.fx.length||L.table.length)
  const rs=lvRounds(L),n=md==null?lvCur(L):md,R=rs.find(x=>x.n===n)||rs[rs.length-1]||{fx:[],n:0};
  const P=L.table.length?Math.max(...L.table.map(x=>x.P)):0;
  return{name:c,N:R.n,P,fx:R.fx,done:R.fx.every(f=>f.state==='FT'||f.pp),last:R.fx.length?R.fx[R.fx.length-1].ko:new Date(),isCup:L.kind==='cup'&&!L.table.length,T:DATA[c]?DATA[c].T:lvTeams(L),label:R.r}}
-const table=(T,lg,P)=>{const L=LV.lg[lg];return L&&L.table.length?L.table.map(r=>({t:r.t,P:r.P,w:r.w,d:r.d,l:r.l,gf:r.gf,ga:r.ga,pts:r.pts,form:lvForm(L,r.t,r,S.fn||5),grp:r.grp,rank:r.rank})):[]};
+const table=(T,lg,P)=>{const L=LV.lg[lg];return L&&L.table.length?lvLiveRows(L).map(r=>({t:r.t,P:r.P,w:r.w,d:r.d,l:r.l,gf:r.gf,ga:r.ga,pts:r.pts,form:lvForm(L,r.t,r,S.fn||5),grp:r.grp,rank:r.rank,live:!!r.live})):[]};
 /* Verified factual evidence helpers: completed cached fixtures only; no outcome estimates. */
 function verifiedCompletedFixtures(L){
  if(!L||!Array.isArray(L.fx))return[];
@@ -1521,8 +1549,8 @@ function tpList(c){
  const head=`<h3 class='day' style='margin-top:24px'>${as?'Top assists':'Top scorers'}</h3><div class='bar'>${dd('tpm',[['g','Top scorers'],['a','Top assists']],as?'a':'g','List')}</div>`;
  const body=rows.map((p,i)=>`<tr><td>${i+1}</td><td>${adH(p.n)}</td><td>${tmx(p.t)}</td><td>${as?'':'<b>'}${p.g}${as?'':'</b>'}</td><td>${as?'<b>'+p.a+'</b>':p.a}</td><td>${p.ap}</td></tr>`).join('')||`<tr><td colspan=6>${L.sc===null&&!L.scErr?'Loading…':(L.scErr?adH(L.scErr):'Nothing to show yet.')}</td></tr>`;
  return head+`<div class='tw'><table><thead><tr><th>#</th><th>Player</th><th>Team</th><th>Goals</th><th>Assists</th><th>Apps</th></tr></thead><tbody>${body}</tbody></table></div>`+(src.length>20?`<button class='chip' style='margin-top:10px' onclick='S.tpall=!S.tpall;teams()'>${all?'Show top 20':'Show all '+src.length}</button>`:'')}
-function teams(){const c=S.country,R=roundOf(c,0),FN=S.fn||5;DDH.fn=v=>{S.fn=+v;teams()};
- app.innerHTML=`<h2 style='font-size:26px;margin-bottom:10px'>Teams and tables</h2>`+selectors('country','comp',dd('fn',[['5','Last 5 matches'],['10','Last 10 matches'],['15','Last 15 matches'],['20','Last 20 matches']],String(FN),'Form'))+(c==='UEFA Super Cup'?`<h3 class='day'>Super Cup final</h3>`+R.fx.map(rowHtml).join(''):banner(R)+`<div class='tw'><table><thead><tr><th>#</th><th>Team</th><th>P</th><th>W</th><th>D</th><th>L</th><th>GF</th><th>GA</th><th>GD</th><th>Pts</th><th>Last ${FN}</th></tr></thead><tbody>${table(R.T,R.name,R.P).map((s,i)=>`<tr class='${i<4?'zone':''}'><td>${i+1}</td><td>${tmx(s.t)}</td><td>${s.P}</td><td>${s.w}</td><td>${s.d}</td><td>${s.l}</td><td>${s.gf}</td><td>${s.ga}</td><td>${s.gf-s.ga>0?'+':''}${s.gf-s.ga}</td><td><b>${s.pts}</b></td><td>${formHtml(s.form)}</td></tr>`).join('')}</tbody></table></div>${factualTeamSection(c)}${tpList(c)}`)}
+function teams(){const c=S.country,R=roundOf(c,0),FN=S.fn||5,TB=c==='UEFA Super Cup'?[]:table(R.T,R.name,R.P);DDH.fn=v=>{S.fn=+v;teams()};
+ app.innerHTML=`<h2 style='font-size:26px;margin-bottom:10px'>Teams and tables</h2>`+selectors('country','comp',dd('fn',[['5','Last 5 matches'],['10','Last 10 matches'],['15','Last 15 matches'],['20','Last 20 matches']],String(FN),'Form'))+(c==='UEFA Super Cup'?`<h3 class='day'>Super Cup final</h3>`+R.fx.map(rowHtml).join(''):banner(R)+`<div class='tw'><table><thead><tr><th>#</th><th>Team</th><th>P</th><th>W</th><th>D</th><th>L</th><th>GF</th><th>GA</th><th>GD</th><th>Pts</th><th>Last ${FN}</th></tr></thead><tbody>${TB.map((s,i)=>`<tr class='${i<4?'zone':''}'><td>${i+1}</td><td>${tmx(s.t)}${s.live?`<span class='lvdot' title='Playing now'></span>`:''}</td><td>${s.P}</td><td>${s.w}</td><td>${s.d}</td><td>${s.l}</td><td>${s.gf}</td><td>${s.ga}</td><td>${s.gf-s.ga>0?'+':''}${s.gf-s.ga}</td><td><b>${s.pts}</b></td><td>${formHtml(s.form)}</td></tr>`).join('')}</tbody></table></div>${TB.some(x=>x.live)?`<div class='sm' style='margin-top:8px'><span class='lvdot' style='margin:0 6px 0 0'></span>Live table: includes matches in play and results the official table has not counted yet.</div>`:''}${factualTeamSection(c)}${tpList(c)}`)}
 function ext(top,sw){
  const X=S.xv,v=id=>X[id]||'',E=Object.keys(KNOWN).filter(k=>!KNOWN[k].full&&!CFG.off.includes(k)),inp=(id,l,ph)=>`<label class='sm'>${l}<input id='${id}' placeholder='${ph||''}' value='${v(id).replace(/'/g,'&#39;')}'></label>`;
  if(!E.includes(X.x_lg))X.x_lg=E[0];
@@ -2028,6 +2056,7 @@ A new version of Full Time is ready.|Une nouvelle version de Full Time est dispo
 Refresh|Actualiser|Actualizar|تحديث
 Refreshing…|Actualisation…|Actualizando…|جارٍ التحديث…
 Later|Plus tard|Más tarde|لاحقاً
+Live table: includes matches in play and results the official table has not counted yet.|Classement en direct : inclut les matchs en cours et les résultats pas encore comptés dans le classement officiel.|Tabla en vivo: incluye los partidos en juego y los resultados que la tabla oficial aún no ha contado.|جدول مباشر: يشمل المباريات الجارية والنتائج التي لم يحتسبها الجدول الرسمي بعد.
 Copied|Copié|Copiado|تم النسخ`.split('\n').forEach(l=>{const a=l.split('|');if(a.length===4&&a[0])TRD[a[0]]=[a[1],a[2],a[3]]});
 String.raw`^Home (\d+)%$|||Domicile {1} %|||Local {1} %|||المضيف {1}٪
 ^Draw (\d+)%$|||Nul {1} %|||Empate {1} %|||تعادل {1}٪
@@ -2672,7 +2701,7 @@ async function adTick(force){
 setInterval(adTick,10000);
 
 addEventListener('hashchange',show);addEventListener('pageshow',e=>{if(e.persisted)show()});(CLOUD()?cloudBoot():Promise.resolve()).catch(e=>console.warn('cloud boot',e)).then(()=>liveBoot()).catch(e=>console.warn('live boot',e)).then(()=>{const dt=document.getElementById('disc-t');if(dt)dt.innerHTML=DISC_LONG;show();trAll();crScan();if(S.flash){const e=$('#er');if(e){e.textContent=TR(S.flash);S.flash=''}}cWatch()});
-setInterval(lvPoll,20000);
+setInterval(lvPoll,20000);setInterval(()=>{if(LV.dirty&&!document.hidden&&!lvBusy())lvRefresh()},4000);
 document.addEventListener('visibilitychange',()=>{if(!document.hidden)lvPoll()});
 window.addEventListener('focus',()=>lvPoll());
 </script>
