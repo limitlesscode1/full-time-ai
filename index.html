@@ -720,6 +720,13 @@ body.nav-s2 header nav#nav button{padding:7px 8px;font-size:13px}
  table.rt tr.ec td,table.rg tr.ec td{position:static!important;display:block;text-align:center!important}
  table.rt tr.ec td::before,table.rg tr.ec td::before{display:none}
 }
+
+/* ===== update banner (shown inside the signed-in app only) ===== */
+#updbar{position:fixed;left:50%;bottom:max(16px,env(safe-area-inset-bottom));transform:translateX(-50%);z-index:9000;display:flex;align-items:center;gap:12px;width:max-content;max-width:calc(100vw - 24px);padding:10px 10px 10px 16px;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-left:4px solid var(--acc);border-radius:14px;box-shadow:0 10px 30px rgba(0,0,0,.35);font-size:14px;line-height:1.35}
+#updbar .ub{flex:none;background:var(--acc);color:#fff;border:0;border-radius:10px;padding:8px 16px;font:inherit;font-weight:700;cursor:pointer}
+#updbar .ub:disabled{opacity:.7;cursor:default}
+#updbar .ux{flex:none;background:none;border:0;color:var(--mute);font-size:14px;cursor:pointer;padding:6px 8px;border-radius:8px}
+@media(max-width:520px){#updbar{flex-wrap:wrap;justify-content:flex-end;width:calc(100vw - 24px)}#updbar span{flex:1 1 100%}}
 </style>
 </head>
 <body>
@@ -1296,7 +1303,7 @@ function adDash(b){
  const pSer=P?(P.days||[]).map(d=>d.others):adSeries(pr.map(e=>e.d),14);
  const T=(n,l,g)=>`<div class='tile ${g?'g':''}'><span>${l}</span><b>${n}</b></div>`;
  const rec=U.slice().sort((a,c)=>c[1].created-a[1].created).slice(0,6);
- b.innerHTML=`${FEAT().maint?`<div class='ann warn'><span>Maintenance mode is ON. Visitors see a maintenance message. Turn it off in Admin controls, Features.</span></div>`:''}<div class='ad-tiles'>${T(U.length,'Total users',1)}${T(nw,'New this week')}${T(act,'Active this week')}${T(saved,'Saved predictions')}${CLOUD()?(P?T(P.mine_total,'My predictions (admin)')+T(P.others_total,'Users’ predictions (not mine)')+T(P.others_week,'Users’ predictions this week'):T(pr.length,'My predictions (admin)')+T('–','Users’ predictions (run update.sql)')):T(pr.length,'Predictions generated')}${T(locked,'Locked accounts')}${T(banned,'Banned accounts')}${CLOUD()?T(ADM.unread,'Unread messages')+T(ADM.openPolls,'Open polls'):''}${T(REQ.g().length,'Unblock requests')}</div>
+ b.innerHTML=`${FEAT().maint?`<div class='ann warn'><span>Maintenance mode is ON. Visitors see a maintenance message. Turn it off in Admin controls, Features.</span></div>`:''}<div class='ad-tiles'>${T(U.length,'Total users',1)}${siteTiles(T)}${T(nw,'New this week')}${T(act,'Active this week')}${T(saved,'Saved predictions')}${CLOUD()?(P?T(P.mine_total,'My predictions (admin)')+T(P.others_total,'Users’ predictions (not mine)')+T(P.others_week,'Users’ predictions this week'):T(pr.length,'My predictions (admin)')+T('–','Users’ predictions (run update.sql)')):T(pr.length,'Predictions generated')}${T(locked,'Locked accounts')}${T(banned,'Banned accounts')}${CLOUD()?T(ADM.unread,'Unread messages')+T(ADM.openPolls,'Open polls'):''}${T(REQ.g().length,'Unblock requests')}</div>
  <div class='ad-two'><div class='card'><h3 style='margin:0 0 10px'>Sign-ups, last 14 days</h3>${adBars(adSeries(U.map(([e,u])=>u.created),14),'var(--acc)','Sign-ups per day for the last 14 days')}</div><div class='card'><h3 style='margin:0 0 10px'>${CLOUD()&&P?'Users’ predictions, last 14 days (not mine)':'Predictions generated, last 14 days'}</h3>${adBars(pSer,'var(--amber)','Predictions generated per day for the last 14 days')}</div></div>
  <div class='ad-two'><div class='card'><h3 style='margin:0 0 6px'>Needs attention</h3><div id='arq'>${adReqHtml()}</div></div><div class='card'><h3 style='margin:0 0 6px'>Recent sign-ups</h3>${rec.map(([e,u])=>`<div class='ad-row'><div class='ad-u'><span class='ad-av'>${adH((u.username||'?')[0].toUpperCase())}</span><div><b>${adH(u.username)}</b><div class='sm'>${adH(e)}</div></div></div><span class='sm'>${new Date(u.created).toLocaleDateString()}${u.google?' · Google':''}</span></div>`).join('')||`<div class='sm'>No accounts yet.</div>`}</div></div>
  <div class='ad-two'><div class='card'><h3 style='margin:0 0 6px'>${P?'Users’ predictions by source (not mine)':'Predictions by source'}</h3>${Object.keys(by).length?Object.entries(by).sort((a,c)=>c[1]-a[1]).map(([k,n])=>`<div class='ad-row'><span>${adH(k)}</span><b>${n}</b></div>`).join(''):`<div class='sm'>No predictions yet.</div>`}</div><div class='card'><h3 style='margin:0 0 6px'>Latest activity</h3>${logTable(L.slice(-6).reverse())}</div></div>`;
@@ -2017,6 +2024,10 @@ This account is blocked. Use Log in to send an unblock request.|Ce compte est bl
 Your username can be changed once a month. Old usernames cannot be reused.|Votre nom d'utilisateur peut être modifié une fois par mois. Les anciens noms d'utilisateur ne peuvent pas être réutilisés.|Tu usuario puede cambiarse una vez al mes. Los usuarios anteriores no se pueden reutilizar.|يمكن تغيير اسم المستخدم مرة واحدة في الشهر. لا يمكن إعادة استخدام أسماء المستخدمين القديمة.
 Email us|Nous écrire|Escríbenos|راسلنا
 Copy email|Copier l'e-mail|Copiar correo|نسخ البريد
+A new version of Full Time is ready.|Une nouvelle version de Full Time est disponible.|Hay una nueva versión de Full Time disponible.|يتوفر إصدار جديد من Full Time.
+Refresh|Actualiser|Actualizar|تحديث
+Refreshing…|Actualisation…|Actualizando…|جارٍ التحديث…
+Later|Plus tard|Más tarde|لاحقاً
 Copied|Copié|Copiado|تم النسخ`.split('\n').forEach(l=>{const a=l.split('|');if(a.length===4&&a[0])TRD[a[0]]=[a[1],a[2],a[3]]});
 String.raw`^Home (\d+)%$|||Domicile {1} %|||Local {1} %|||المضيف {1}٪
 ^Draw (\d+)%$|||Nul {1} %|||Empate {1} %|||تعادل {1}٪
@@ -2388,6 +2399,33 @@ async function cWatch(){if(!CLOUD()||document.hidden||S.adm||S.userMode)return;c
  if(Date.now()-cHB>3e5){cHB=Date.now();const t=await cTok();if(t)cReq('/rest/v1/profiles?id=eq.'+c.uid,{method:'PATCH',token:t,body:{last_seen:new Date().toISOString()},headers:{Prefer:'return=minimal'}})}
  await cUnread()}
 setInterval(cWatch,45000);
+/* ---- site views + active users: counts every visitor, not just signed-in users ---- */
+const VID=(()=>{try{let v=localStorage.getItem('ft_vid');if(!v){v=rid();localStorage.setItem('ft_vid',v)}return v}catch(e){return rid()}})();
+function siteTrack(view){try{if(!SB()||S.adm||localStorage.getItem('ft_admin_sess')||(document.hidden&&!view))return}catch(e){return}
+ cReq('/rest/v1/rpc/ft_track',{method:'POST',body:{p_vid:VID,p_view:!!view}})}
+setTimeout(()=>{try{localStorage.setItem('ft_views',(+localStorage.getItem('ft_views')||0)+1)}catch(e){}siteTrack(true)},1500);
+setInterval(()=>siteTrack(false),60000);
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)siteTrack(false)});
+/* ---- new version notice: when a new file is deployed, signed-in users get a Refresh button (never on the landing page) ---- */
+const UPD={base:'',pend:'',n:0,ready:0,hide:0,last:0};
+async function updSig(){const u=location.href.split('#')[0].split('?')[0]+'?_u='+Date.now();let r=await fetch(u,{method:'HEAD',cache:'no-store'});if(!r.ok)return'';
+ const h=r.headers,s=[h.get('etag'),h.get('last-modified'),h.get('content-length')].filter(Boolean).join('|');if(s)return s;
+ r=await fetch(u,{cache:'no-store'});if(!r.ok||!/html/i.test(r.headers.get('content-type')||''))return'';return sha(await r.text())}
+async function updCheck(){if(!/^https?:$/.test(location.protocol)||UPD.ready||document.hidden)return;UPD.last=Date.now();
+ try{const g=await updSig();if(!g)return;if(!UPD.base){UPD.base=g;return}
+  if(g===UPD.base){UPD.pend='';UPD.n=0;return}
+  if(g===UPD.pend)UPD.n++;else{UPD.pend=g;UPD.n=1}
+  if(UPD.n>=2){UPD.ready=1;updUI()}}catch(e){}}
+async function updGo(){const b=document.querySelector('#updbar .ub');if(b){b.disabled=true;b.textContent=tx('Refreshing…')}
+ try{if('caches' in window){const k=await caches.keys();await Promise.all(k.map(x=>caches.delete(x)))}if(navigator.serviceWorker){const rs=await navigator.serviceWorker.getRegistrations();await Promise.all(rs.map(r=>r.unregister()))}}catch(e){}
+ location.reload()}
+function updUI(){let el=document.getElementById('updbar');const inApp=!!(S.adm||me());
+ if(!UPD.ready||UPD.hide||!inApp){if(el)el.remove();return}
+ if(el)return;el=document.createElement('div');el.id='updbar';el.setAttribute('role','status');
+ el.innerHTML=`<span>${tx('A new version of Full Time is ready.')}</span><button class='ub' type='button'>${tx('Refresh')}</button><button class='ux' type='button'>${tx('Later')}</button>`;
+ el.querySelector('.ub').onclick=updGo;el.querySelector('.ux').onclick=()=>{UPD.hide=1;el.remove()};document.body.appendChild(el)}
+setTimeout(updCheck,4000);setInterval(updCheck,120000);setInterval(updUI,4000);
+document.addEventListener('visibilitychange',()=>{if(!document.hidden&&Date.now()-UPD.last>45000)updCheck()});
 document.addEventListener('visibilitychange',()=>{if(!document.hidden){cWatch();adTick()}});
 /* keep the login page banner and maintenance switch fresh without a reload */
 let mtBusy=0;const mtCheck=async()=>{if(!CLOUD()||document.hidden||mtBusy||S.adm||S.tab==='admin')return;mtBusy=1;try{const was=!!FEAT().maint,a=JSON.stringify([CFG.ann,CFG.feat]);await cLoadCfg();const now=!!FEAT().maint;
@@ -2534,6 +2572,14 @@ function adDrawerCloud(e,redo){const u=USERS[e],d=$('#adr'),ov=$('#adov2');if(!u
 
 /* ---- admin: messages ---- */
 const ADM={msgs:[],unread:0,polls:[],openPolls:0,ok:1,pOk:true,pred:null};
+/* ---- site views + active users (dashboard tiles) ---- */
+const ADS={d:null};
+async function adFetchSite(){const r=await sbq('/rest/v1/rpc/ft_site_stats',{method:'POST',body:{}});ADS.d=(r.ok&&r.json&&typeof r.json==='object'&&!Array.isArray(r.json))?r.json:null}
+function siteTiles(T){const fm=n=>Number(n||0).toLocaleString(),d=ADS.d;
+ if(CLOUD()&&d)return T(fm(d.total),'Site views')+T(fm(d.today),'Views today')+T(fm(d.active),'Active now');
+ if(CLOUD())return T('\u2013','Site views (run site_stats.sql)')+T('\u2013','Active now (run site_stats.sql)');
+ let n=0;try{n=+localStorage.getItem('ft_views')||0}catch(e){}
+ return T(fm(n),'Site views (this browser)')+T('\u2013','Active now (needs a server)')}
 const ADL={busy:0,fp:''};
 const adUser=uid=>Object.values(USERS).find(u=>u.uid===uid);
 const adMail=u=>Object.keys(USERS).find(k=>USERS[k]===u)||'';
@@ -2609,8 +2655,8 @@ function adPolls(b){
 async function adTick(force){
  if(!S.adm||S.userMode||document.hidden||ADL.busy)return;ADL.busy=1;
  try{let fp='';
-  if(CLOUD()){await cAllUsers();await adFetchMsgs();if(S.as==='dash'||S.as==='pl')await adFetchPolls();if(S.as==='dash')await adFetchPred();
-   fp=Object.values(USERS).map(u=>[u.uid,u.status,u.lockedUntil,(u.logins||[]).length,(u.preds||[]).length,u.seen,u.username].join(',')).join('|')+'#'+ADM.msgs.length+':'+ADM.unread+':'+(ADM.msgs.length?ADM.msgs[ADM.msgs.length-1].id:'')+'#'+ADM.openPolls+':'+JSON.stringify(PL.res)+'#'+JSON.stringify(ADM.pred)}
+  if(CLOUD()){await cAllUsers();await adFetchMsgs();if(S.as==='dash'||S.as==='pl')await adFetchPolls();if(S.as==='dash')await adFetchPred();if(S.as==='dash')await adFetchSite();
+   fp=Object.values(USERS).map(u=>[u.uid,u.status,u.lockedUntil,(u.logins||[]).length,(u.preds||[]).length,u.seen,u.username].join(',')).join('|')+'#'+ADM.msgs.length+':'+ADM.unread+':'+(ADM.msgs.length?ADM.msgs[ADM.msgs.length-1].id:'')+'#'+ADM.openPolls+':'+JSON.stringify(PL.res)+'#'+JSON.stringify(ADM.pred)+'#'+JSON.stringify(ADS.d)}
   else{USERS=AU.load();fp=Object.keys(USERS).length+'|'+Object.values(USERS).map(u=>(u.logins||[]).length+':'+(u.preds||[]).length).join(',')+'|'+REQ.g().length+'|'+Object.keys(LOCK.g()).length}
   if(!S.adm)return;
   adBadges();const el=$('#adlive');if(el)el.textContent='\u25CF Live \u00B7 updated '+new Date().toLocaleTimeString();
