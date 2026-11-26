@@ -6,6 +6,8 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' blob: https://accounts.google.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://accounts.google.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob: https:; connect-src 'self' https://oauth2.googleapis.com https://accounts.google.com https://www.thesportsdb.com https://*.supabase.co https://cdn.jsdelivr.net https://tessdata.projectnaptha.com; frame-src https://accounts.google.com; worker-src 'self' blob:; manifest-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="referrer" content="strict-origin-when-cross-origin">
 <script src="config.js"></script>
+<script>/* remember the site settings; if config.js cannot load (offline) use the saved copy */
+(function(){try{if(window.FT_CONFIG&&typeof window.FT_CONFIG==='object'){localStorage.setItem('ft_cfg_cache',JSON.stringify(window.FT_CONFIG))}else{var c=localStorage.getItem('ft_cfg_cache');if(c){window.FT_CONFIG=JSON.parse(c)}else{window.FT_CFG_LOST=1}}}catch(e){if(!window.FT_CONFIG)window.FT_CFG_LOST=1}})();</script>
 <script>if(window.top!==window.self){document.documentElement.style.display='none';try{window.top.location=window.self.location}catch(e){}}</script>
 <meta name="theme-color" content="#1D6FE8">
 <meta name="mobile-web-app-capable" content="yes">
@@ -732,6 +734,11 @@ body.nav-s2 header nav#nav button{padding:7px 8px;font-size:13px}
 .lvdot{display:inline-block;width:8px;height:8px;border-radius:50%;background:#e5484d;margin-left:8px;vertical-align:middle;animation:lvp 1.4s ease-in-out infinite}
 @keyframes lvp{50%{opacity:.3}}
 @media(prefers-reduced-motion:reduce){.lvdot{animation:none}}
+
+/* offline notice */
+#offbar{position:fixed;left:50%;bottom:max(16px,env(safe-area-inset-bottom));transform:translateX(-50%);z-index:9100;width:max-content;max-width:calc(100vw - 24px);padding:12px 16px;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-left:4px solid #f59e0b;border-radius:14px;box-shadow:0 10px 30px rgba(0,0,0,.35);font-size:14px;line-height:1.35;text-align:center}
+.offcard{max-width:520px;margin:12vh auto 0;text-align:center;padding:32px 24px}
+.offcard svg{opacity:.85}
 </style>
 </head>
 <body>
@@ -840,6 +847,7 @@ const lvEnabled=()=>{const fl=(FT.liveLeagues||[]).filter(n=>!LGDROP.includes(n)
 const lvSeason=m=>m[4]==='cal'?new Date().getFullYear():SEASON();
 async function lvGet(path,params){
  if(!SB())return{ok:false,err:'The football data service is not connected.'};
+ if(netOff())return{ok:false,err:'You are offline. Turn on your internet (Wi-Fi or mobile data) to load live football data.'};
 
  try{
   const u=new URL(FT.supabaseUrl.replace(/\/$/,'')+'/functions/v1/football');
@@ -868,16 +876,16 @@ async function lvGet(path,params){
 
   return{ok:true,data:j.response,asOf:j.asOf,site:j.site}
  }catch(e){
-  return{ok:false,err:'Could not reach the football data service.'}
+  return{ok:false,err:netOff()?'You are offline. Turn on your internet (Wi-Fi or mobile data) to load live football data.':'Could not reach the football data service.'}
  }
 }
-const lvFx=(a,name)=>{const s=LVS[a[8]];return{id:a[0],ko:new Date(a[1]*1000),hid:a[2],home:a[3],aid:a[4],away:a[5],hs:a[6]==null?null:a[6],as:a[7]==null?null:a[7],status:a[8],state:s||'UP',pp:a[8]==='PST',min:a[9],r:a[10]||'',comp:name,c:name,i:0}};
+const lvFx=(a,name)=>{const s=LVS[a[8]];return{id:a[0],ko:new Date(a[1]*1000),hid:a[2],home:a[3],aid:a[4],away:a[5],hs:a[6]==null?null:a[6],as:a[7]==null?null:a[7],status:a[8],state:s||'UP',pp:a[8]==='PST',min:a[9],r:a[10]||'',comp:name,c:name,i:0,at:0}};
 function lvMatchClock(f){if(!f||f.state!=='LIVE')return'';const raw=String(f.status||'').toUpperCase();if(raw==='HT'||raw==='PAUSED'||raw==='INT')return'HT';const supplied=Number(f.min);if(f.min!==null&&f.min!==undefined&&Number.isFinite(supplied)&&supplied>0)return Math.floor(supplied)+"′";
  /* no minute from the data service: estimate from kick-off (45 min + stoppage, ~15 min break, then the second half) */
  const e=Math.max(1,Math.floor((Date.now()-f.ko.getTime())/6e4));if(e<=45)return e+"′";if(e<=48)return'45+′';if(e<63)return'HT';const m=e-17;return m>90?'90+′':m+"′"}
 /* the clock is wrapped so it can tick on screen by itself, without redrawing the whole page */
 const lvClk=f=>`<span class="lvc" data-f="${f.id}">${lvMatchClock(f)}</span>`;
-function lvTickClocks(){if(document.hidden)return;const els=document.querySelectorAll('.lvc');if(!els.length)return;const m=new Map();Object.values(LV.lg).forEach(L=>L.fx.forEach(f=>m.set(String(f.id),f)));
+function lvTickClocks(){if(document.hidden)return;document.querySelectorAll('.lva').forEach(e=>{const t=lvUpd0();if(e.textContent!==t)e.textContent=t});const els=document.querySelectorAll('.lvc');if(!els.length)return;const m=new Map();Object.values(LV.lg).forEach(L=>L.fx.forEach(f=>m.set(String(f.id),f)));
  els.forEach(el=>{const f=m.get(el.dataset.f);if(!f)return;const t=lvMatchClock(f);if(t&&el.textContent!==t)el.textContent=t})}
 setInterval(lvTickClocks,15000);
 const lvRow=r=>({id:r[0],t:r[1],rank:r[2],P:r[3],w:r[4],d:r[5],l:r[6],gf:r[7],ga:r[8],pts:r[9],form:String(r[10]||'').split('').filter(x=>'WDL'.includes(x)).slice(-5),grp:r[11]||'',desc:r[12]||'',home:r[13],away:r[14]});
@@ -920,7 +928,7 @@ function lvLoad(name,force){const m=LC.find(x=>x[0]===name);if(!m)return Promise
   L.err=has?'':'No matches in the last 200 or next 30 days (a break or the off-season).';
   L.id=id;L.season=season;L.meta=(a.data&&a.data.lg)||null;L._r=null;L.fxAsOf=a.asOf||Date.now();L.stAsOf=b.asOf||0;
   L.cr=Object.assign({},(a.data&&a.data.cr)||{},(b.ok&&b.data&&b.data.cr)||{});
-  L.fx=((a.data&&a.data.fx)||[]).map(x=>lvFx(x,name));
+  {const prev=new Map(L.fx.map(f=>[f.id,f]));L.fx=((a.data&&a.data.fx)||[]).map(x=>{const f=lvFx(x,name);f.at=L.fxAsOf;return lvCarry(f,prev.get(f.id))})}
   L.table=(b.ok&&b.data&&b.data.rows)?b.data.rows.map(lvRow):[];
   if(!b.ok&&!L.table.length)L.stErr=b.err;else L.stErr='';
   })().catch(e=>{L.err='Could not load this competition.';L.at=Date.now()}).finally(()=>{L.p=null;lvSyncData();if(LV.booted)lvRefreshSoon()});return L.p}
@@ -929,7 +937,18 @@ async function lvScorers(name){const L=LV.lg[name];if(!L||!L.id)return;if(L.scAt
  const mp=r=>(r.ok&&Array.isArray(r.data))?r.data.map(x=>({id:x[0],n:x[1],tid:x[2],t:x[3],g:x[4],a:x[5],ap:x[6]})):null;
  L.pAsOf=(a.ok&&a.asOf)||L.pAsOf||0;L.sc=mp(a);L.as=mp(b);L.scErr=(!a.ok?a.err:'')||(!b.ok?b.err:'');_PC.clear()}
 async function lvStatus(){const r=await lvGet('status',{});if(r.ok&&r.data){LV.fd=r.data;LV.plan=r.data.plan||'';LV.used=r.data.used;LV.limit=r.data.limit;LV.statusErr='';if(r.site)LV.site=r.site}else{LV.statusErr=r.err||''}}
-function lvMerge(a){const s=LVS[a[8]];for(const n of Object.keys(LV.lg)){const f=LV.lg[n].fx.find(x=>x.id===a[0]);if(f){const was=f.state,sg=()=>f.status+'|'+f.hs+'|'+f.as+'|'+f.min+'|'+f.ko.getTime(),b4=sg();f.status=a[8];f.state=s||'UP';f.pp=!s;f.hs=a[6]==null?null:a[6];f.as=a[7]==null?null:a[7];f.min=a[9];f.ko=new Date(a[1]*1000);if(was==='LIVE'&&f.state==='FT')lvAfterFt(n);return sg()!==b4}}return false}
+function lvMerge(a,at){const s=LVS[a[8]];at=at||Date.now();for(const n of Object.keys(LV.lg)){const f=LV.lg[n].fx.find(x=>x.id===a[0]);if(f){if(f.at&&at<f.at)return false;if(f.state==='FT'&&(s||'UP')!=='FT')return false;f.at=at;const was=f.state,sg=()=>f.status+'|'+f.hs+'|'+f.as+'|'+f.min+'|'+f.ko.getTime(),b4=sg();f.status=a[8];f.state=s||'UP';f.pp=!s;f.hs=a[6]==null?null:a[6];f.as=a[7]==null?null:a[7];f.min=a[9];f.ko=new Date(a[1]*1000);if(was==='LIVE'&&f.state==='FT')lvAfterFt(n);return sg()!==b4}}return false}
+/* a reload of the matches list must not undo newer information we already have */
+function lvCarry(f,o){if(!o)return f;
+ if(o.state==='FT'&&f.state!=='FT'){f.status=o.status;f.state='FT';f.pp=false;f.hs=o.hs;f.as=o.as;f.min=o.min;f.at=Math.max(o.at||0,f.at||0);return f}
+ if((o.at||0)>(f.at||0)){f.status=o.status;f.state=o.state;f.pp=o.pp;f.hs=o.hs;f.as=o.as;f.min=o.min;f.ko=o.ko;f.at=o.at;return f}
+ if(f.state==='LIVE'&&o.state==='LIVE'&&f.hs==null&&o.hs!=null){f.hs=o.hs;f.as=o.as}
+ return f}
+/* still marked as playing long after the match should be over: say "Result pending" (the last score stays visible) */
+const lvLate=f=>{if(f.state!=='LIVE')return false;const L=LV.lg[f.comp];return Date.now()-f.ko.getTime()>(L&&L.kind==='league'?125:170)*6e4};
+const lvLbl=f=>lvLate(f)?'Result pending':'Playing now · '+lvClk(f);
+const lvUpd0=()=>LV.liveAsOf?'updated '+lvAgo(LV.liveAsOf):'';
+const lvUpd=()=>LV.liveAsOf?` · <span class="lva">${lvUpd0()}</span>`:'';
 /* a match just ended: re-read that competition a few times so the official table catches up quickly */
 function lvAfterFt(n){const L=LV.lg[n];if(!L||L.ftT)return;L.ftT=1;[15e4,42e4,9e5].forEach((ms,i)=>setTimeout(()=>{if(i===2)L.ftT=0;lvLoad(n,true)},ms))}
 /* live table: the official table plus matches in play (and just-ended matches the official table has not counted yet) */
@@ -954,12 +973,12 @@ async function lvLiveTick(quiet){const en=lvEnabled().map(n=>LV.lg[n]).filter(L=
  if(!en.some(L=>L.fx.some(f=>f.state==='LIVE'||(f.state==='UP'&&!f.pp&&f.ko.getTime()<=now+3e5&&f.ko.getTime()>now-126e5))))return;
  const r=await lvGet('live',{});if(!r.ok||!r.data)return;LV.liveAsOf=r.asOf||Date.now();
  const ids=new Set(en.map(L=>L.id)),seen=new Set();let changed=false;
- (r.data.fx||[]).forEach(a=>{if(!ids.has(a[11]))return;seen.add(a[0]);if(lvMerge(a))changed=true});
+ (r.data.fx||[]).forEach(a=>{if(!ids.has(a[11]))return;seen.add(a[0]);if(lvMerge(a,r.asOf))changed=true});
  const gone=[];en.forEach(L=>L.fx.forEach(f=>{const t=f.ko.getTime();if(!seen.has(f.id)&&(f.state==='LIVE'||(f.state==='UP'&&!f.pp&&t<now-108e5&&t>now-432e5)))gone.push(f.id)}));
- if(gone.length){gone.sort((x,y)=>x-y);const r2=await lvGet('fixtures',{ids:gone.slice(0,20).join('-')});if(r2.ok&&r2.data&&r2.data.fx)r2.data.fx.forEach(a=>{if(lvMerge(a))changed=true})}
+ if(gone.length&&now-(LV.goneAt||0)>=6e4){LV.goneAt=now;gone.sort((x,y)=>x-y);const r2=await lvGet('fixtures',{ids:gone.slice(0,20).join('-')});if(r2.ok&&r2.data&&r2.data.fx)r2.data.fx.forEach(a=>{if(lvMerge(a,r2.asOf))changed=true})}
  if(changed){_RC.clear();_SC.clear();_PC.clear();if(!quiet)lvRefresh()}return changed}
 const lvAll=force=>Promise.all(lvEnabled().map(n=>lvLoad(n,force)));
-const lvFp=()=>Object.values(LV.lg).map(L=>L.fx.map(f=>f.id+f.status+f.hs+f.as+(f.state==='LIVE'?lvMatchClock(f):'')).join('')+(L.stAsOf||'')).join('|');
+const lvFp=()=>Object.values(LV.lg).map(L=>L.fx.map(f=>f.id+f.status+f.hs+f.as+(f.state==='LIVE'?lvMatchClock(f)+(lvLate(f)?'L':''):'')).join('')+(L.stAsOf||'')).join('|');
 function lvBusy(){const a=document.activeElement,t=a&&a.tagName;return t==='INPUT'||t==='TEXTAREA'||t==='SELECT'||!!document.querySelector('.ddl:not([hidden])')||!!S.adm}
 let lvT=0;function lvRefreshSoon(){clearTimeout(lvT);lvT=setTimeout(lvRefresh,300)}
 function lvReset(){Object.keys(DATA).forEach(k=>delete DATA[k]);COUNTRIES.length=0}
@@ -1125,9 +1144,9 @@ const callText=(p,f)=>p.call==='Home win'?f.home+' to win':p.call==='Away win'?f
 
 function cardHtml(f){
  const p=predict(f),pc=x=>Math.round(x*100);
- return`<article class="card"><div class="top"><span>${f.comp}</span><span>${f.state==='LIVE'?`<b class="st live">Playing now · ${lvClk(f)}</b>`:f.pp?'Postponed':fmt(f.ko)}</span></div>
+ return`<article class="card"><div class="top"><span>${f.comp}</span><span>${f.state==='LIVE'?`<b class="st live">${lvLbl(f)}</b>`:f.pp?'Postponed':fmt(f.ko)}</span></div>
  <div class="vs"><b class="tm">${crest(f.home,'m')}<span>${f.home}</span></b><span class="score">${f.state==='UP'?p.score[0]+' – '+p.score[1]:f.state==='UNK'||f.hs==null||f.as==null?'—':(f.hs+' – '+f.as)}</span><b class="tm">${crest(f.away,'m')}<span>${f.away}</span></b></div>
- <div class="sm" style="text-align:center">${f.state==='UP'?'Predicted score':f.state==='UNK'?'Result pending':f.state==='LIVE'?'Playing now · '+lvClk(f):'Full time'}</div>
+ <div class="sm" style="text-align:center">${f.state==='UP'?'Predicted score':f.state==='UNK'?'Result pending':f.state==='LIVE'?lvLbl(f)+lvUpd():'Full time'}</div>
  <div class="pb"><i style="width:${pc(p.ph)}%;background:var(--acc)"></i><i style="width:${pc(p.pd)}%;background:#8A96A3"></i><i style="width:${pc(p.pa)}%;background:var(--amber)"></i></div>
  <div class="pl"><span>Home ${pc(p.ph)}%</span><span>Draw ${pc(p.pd)}%</span><span>Away ${pc(p.pa)}%</span></div>
  <div class="call"><span class="tag">${callText(p,f)}</span><span class="sm">Confidence ${pc(p.conf)}%</span></div>
@@ -1139,14 +1158,14 @@ function matchday(){
  app.innerHTML=`<h2 style="font-size:26px;margin-bottom:10px">Match day</h2>`+selectors('country','comp')+banner(R)+
  R.fx.map(f=>{const d=dayFmt(f.ko),hd=d!==last?`<div class="day">${d}</div>`:'';last=d;
  const sc=f.state==='UP'?'v':f.state==='UNK'||f.hs==null||f.as==null?'—':`${f.hs} – ${f.as}`,t=f.ko.toLocaleTimeString(LOC(),{hour:'2-digit',minute:'2-digit',hour12:H12()});
- return hd+`<div class="row"><span class="sm">${t}</span><span class="h"><span class="tmx r"><span>${f.home}</span>${crest(f.home,'s')}</span></span><span class="s">${sc}</span><span><span class="tmx">${crest(f.away,'s')}<span>${f.away}</span></span></span><span class="st ${f.state==='LIVE'?'live':''}">${f.state==='UP'?'Upcoming':f.state==='UNK'?'Result pending':f.state==='LIVE'?'Playing now · '+lvClk(f):f.state==='FT'?'Full time':'Postponed'}</span></div>`}).join('');
+ return hd+`<div class="row"><span class="sm">${t}</span><span class="h"><span class="tmx r"><span>${f.home}</span>${crest(f.home,'s')}</span></span><span class="s">${sc}</span><span><span class="tmx">${crest(f.away,'s')}<span>${f.away}</span></span></span><span class="st ${f.state==='LIVE'?'live':''}">${f.state==='UP'?'Upcoming':f.state==='UNK'?'Result pending':f.state==='LIVE'?lvLbl(f):f.state==='FT'?'Full time':'Postponed'}</span></div>`}).join('');
  wire('country','comp',matchday)}
 
 /* ---------- shell ---------- */
 
 
 
-const rowHtml=f=>{const sc=f.state==='UP'?'v':f.state==='UNK'||f.hs==null||f.as==null?'—':`${f.hs} – ${f.as}`,t=f.ko.toLocaleTimeString(LOC(),{hour:'2-digit',minute:'2-digit',hour12:H12()});return`<div class="row"><span class="sm">${t}</span><span class="h"><span class="tmx r"><span>${f.home}</span>${crest(f.home,'s')}</span></span><span class="s">${sc}</span><span><span class="tmx">${crest(f.away,'s')}<span>${f.away}</span></span></span><span class="st ${f.state==='LIVE'?'live':''}">${f.state==='UP'?'Upcoming':f.state==='UNK'?'Result pending':f.state==='LIVE'?'Playing now · '+lvClk(f):f.state==='FT'?'Full time':'Postponed'}</span></div>`};
+const rowHtml=f=>{const sc=f.state==='UP'?'v':f.state==='UNK'||f.hs==null||f.as==null?'—':`${f.hs} – ${f.as}`,t=f.ko.toLocaleTimeString(LOC(),{hour:'2-digit',minute:'2-digit',hour12:H12()});return`<div class="row"><span class="sm">${t}</span><span class="h"><span class="tmx r"><span>${f.home}</span>${crest(f.home,'s')}</span></span><span class="s">${sc}</span><span><span class="tmx">${crest(f.away,'s')}<span>${f.away}</span></span></span><span class="st ${f.state==='LIVE'?'live':''}">${f.state==='UP'?'Upcoming':f.state==='UNK'?'Result pending':f.state==='LIVE'?lvLbl(f):f.state==='FT'?'Full time':'Postponed'}</span></div>`};
 
 
 const DDH={};
@@ -1223,6 +1242,12 @@ const GID=()=>String(FT.googleClientId||CFG.googleId||GOOGLE_CLIENT_ID||'').trim
 const LOGO='data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA2NCA2NCI+PGRlZnM+PGxpbmVhckdyYWRpZW50IGlkPSJnIiB4MT0iMCIgeTE9IjAiIHgyPSIxIiB5Mj0iMSI+PHN0b3Agb2Zmc2V0PSIwIiBzdG9wLWNvbG9yPSIjM0I5QkZGIi8+PHN0b3Agb2Zmc2V0PSIxIiBzdG9wLWNvbG9yPSIjMEIyQTVDIi8+PC9saW5lYXJHcmFkaWVudD48L2RlZnM+PHJlY3Qgd2lkdGg9IjY0IiBoZWlnaHQ9IjY0IiByeD0iMTQiIGZpbGw9InVybCgjZykiLz48Y2lyY2xlIGN4PSIzMiIgY3k9IjMyIiByPSIxOSIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjZmZmIiBzdHJva2Utd2lkdGg9IjMiLz48cGF0aCBkPSJNMzIgMjBsOCA2LTMgMTBoLTEwbC0zLTEweiIgZmlsbD0iI2ZmZiIvPjwvc3ZnPg==';
 const AU_USER='autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false"',AU_MAIL='autocomplete="email" autocapitalize="none" autocorrect="off" spellcheck="false"',AU_CUR='autocomplete="current-password"',AU_NEW='autocomplete="new-password"';
 const SB=()=>!!(FT.supabaseUrl&&FT.supabaseAnonKey);
+/* ---- offline: say so plainly instead of showing wrong "not connected" / "sign in" messages ---- */
+const netOff=()=>navigator.onLine===false;
+const netHard=()=>netOff()&&!!window.FT_CFG_LOST;   /* offline and the site has never loaded its settings: nothing can work */
+function offHtml(){return`<div class='card offcard' role='alert'><svg viewBox='0 0 24 24' width='56' height='56' fill='none' stroke='currentColor' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round' aria-hidden='true'><path d='M2 8.8a15 15 0 0 1 4.2-2.6M22 8.8A15 15 0 0 0 10.5 5.1M5 12.9a10 10 0 0 1 3.4-2M19 12.9a10 10 0 0 0-5.6-2.8M8.5 16.4a5 5 0 0 1 7 0M12 20h.01M3 3l18 18'/></svg><h2 style='margin:8px 0'>${tx("You're offline")}</h2><p style='margin:0 0 16px'>${tx('Turn on your internet connection (Wi-Fi or mobile data) to use Full Time. It will reconnect on its own.')}</p><button class='chip' id='offRetry' type='button'>${tx('Try again')}</button></div>`}
+function netUI(){let el=document.getElementById('offbar');const on=netOff()&&!netHard();if(!on){if(el)el.remove();return}
+ if(el)return;el=document.createElement('div');el.id='offbar';el.setAttribute('role','status');el.innerHTML=`<span>${tx("You're offline. Turn on your internet to sign in and get live scores.")}</span>`;document.body.appendChild(el)}
 const DEMO_OK=()=>/^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname)||location.protocol==='file:';
 CFG.custom.forEach(c=>{KNOWN[c.n]={T:c.T,full:0,c:c.c}});
 const loadLog=()=>{try{return JSON.parse(localStorage.getItem('ft_log')||'[]')}catch(e){return[]}};
@@ -1406,11 +1431,11 @@ function adCtl(b){
  if(S.cs==='acct'&&CLOUD())h=cloudAdminCard();else if(S.cs==='acct')h=`<div class='card'><h3 style='margin:0 0 4px'>Admin login</h3><p class='sm' style='margin:0 0 10px'>Signed in as <b>${adH(CFG.admin.email)}</b>. The login is stored in this browser only.</p><div class='fgrid'><label class='sm'>New admin email<input id='ne' type='email'></label><label class='sm'>Current password<input id='ne2' type='password'></label></div><button class='chip' id='nes' ${BTN}>Change email</button> <span class='sm' id='nem'></span></div><div class='card' style='margin-top:14px'><h3 style='margin:0 0 10px'>Change password</h3><div class='fgrid'><label class='sm'>Current password<input id='p0' type='password'></label><label class='sm'>New password<input id='p1' type='password'></label><label class='sm'>Repeat new password<input id='p2' type='password'></label></div><button class='chip' id='pws' ${BTN}>Change password</button> <span class='sm' id='pwm'></span></div>`;
  if(S.cs==='feat'){const F=FEAT(),FT=[['signups','Allow new sign-ups','Turn off to stop new accounts (email and Google). Existing users can still log in.'],['panel','AI panel in AI analysis','When off, AI analysis gives the built-in prediction without the five-AI panel.'],['google','Continue with Google button','Show the Google button on the log in and sign up screens.'],['maint','Maintenance mode','Everyone except the admin panel sees a maintenance message.']];
   h=`<div class='card'>${FT.map(([k,l,d])=>`<div class='ad-sw'><div><b>${l}</b><div class='sm'>${d}</div></div><input class='sw' type='checkbox' data-ft='${k}' ${F[k]?'checked':''}></div>`).join('')}<label class='sm' style='display:block;margin-top:6px'>Maintenance message<textarea id='mm' maxlength='240' placeholder='Full Time AI is being updated. Please check back shortly.'>${adH(F.maintMsg||'')}</textarea></label><div class='sm' id='fm' style='margin-top:6px'></div></div>`}
- if(S.cs==='ai')h=`<div class='card'><h3 style='margin:0 0 4px'>AIs on the panel</h3><p class='sm' style='margin:0 0 6px'>Choose which AIs take part. The General AI combines whoever is on. The extra instruction is added to the prompt sent to that AI when a gateway is connected.</p>${AIP.map(x=>`<div class='ad-sw' style='display:block'><div style='display:flex;justify-content:space-between;align-items:center;gap:14px'><div><b>${x.n}</b><div class='sm'>${x.lens}</div></div><input class='sw' type='checkbox' data-on='${x.k}' ${(CFG.offT||[]).includes(x.k)?'':'checked'}></div><label class='sm' style='display:block;margin-top:8px'>Extra instruction (optional)<textarea data-tx='${x.k}' style='min-height:60px'>${adH(adAdd(x.k).trim())}</textarea></label></div>`).join('')}</div><div class='card' style='margin-top:14px'><h3 style='margin:0 0 4px'>AI gateway</h3><p class='sm' style='margin:0 0 8px'>Without a gateway the panel uses the built-in analysis.</p><label class='sm'>AI gateway URL<input id='aiu' value='${adH(CFG.aiUrl||'').replace(/'/g,'&#39;')}' placeholder='https://...supabase.co/functions/v1/ai-gateway'></label><label class='sm' style='display:block;margin-top:8px'>AI gateway key (optional)<input id='aik' value='${adH(CFG.aiKey||'').replace(/'/g,'&#39;')}'></label></div>${sv('sa')}`;
+ if(S.cs==='ai')h=`<div class='card'><h3 style='margin:0 0 4px'>AIs on the panel</h3><p class='sm' style='margin:0 0 6px'>Choose which AIs take part. The General AI combines whoever is on. The extra instruction is added to the prompt sent to that AI when a gateway is connected.</p>${AIP.map(x=>`<div class='ad-sw' style='display:block'><div style='display:flex;justify-content:space-between;align-items:center;gap:14px'><div><b>${x.n}</b><div class='sm'>${x.lens}</div></div><input class='sw' type='checkbox' data-on='${x.k}' ${(CFG.offT||[]).includes(x.k)?'':'checked'}></div><label class='sm' style='display:block;margin-top:8px'>Extra instruction (optional)<textarea data-tx='${x.k}' style='min-height:60px'>${adH(adAdd(x.k).trim())}</textarea></label></div>`).join('')}</div><div class='card' style='margin-top:14px'><h3 style='margin:0 0 4px'>AI gateway</h3><p class='sm' style='margin:0 0 8px'>Without a gateway the panel uses the built-in analysis. The optional key is sent from this browser and saved in this browser's settings. Enter only a deliberately public, narrowly scoped gateway token here — never an AI provider API key, Supabase service-role key, or other privileged secret. Keep provider secrets inside the server-side Edge Function Secrets.</p><label class='sm'>AI gateway URL<input id='aiu' value='${adH(CFG.aiUrl||'').replace(/'/g,'&#39;')}' placeholder='https://...supabase.co/functions/v1/ai-gateway'></label><label class='sm' style='display:block;margin-top:8px'>Public gateway token (optional)<input id='aik' type='password' autocomplete='new-password' value='${adH(CFG.aiKey||'').replace(/'/g,'&#39;')}'></label></div>${sv('sa')}`;
  if(S.cs==='con')h=`<div class='card'><div class='fgrid'><label class='sm'>Contact email<input id='ce1' value='${adH((CFG.contact||{}).email||'').replace(/'/g,'&#39;')}'></label><label class='sm'>WhatsApp number (digits with country code)<input id='cw' value='${adH((CFG.contact||{}).wa||'')}'></label><label class='sm'>Instagram username<input id='ci' value='${adH((CFG.contact||{}).ig||'')}'></label></div><label class='sm' style='display:block;margin-top:8px'>Email service URL for codes<input id='mu' value='${adH(CFG.mailUrl||'').replace(/'/g,'&#39;')}' placeholder='https://...'></label><p class='sm'>Without an email service URL the app runs in demo mode and shows user reset codes on screen. The admin password reset needs a real email service.</p>${sv('sc')}</div>`;
  if(S.cs==='sig')h=`<div class='card'><label class='sm'>Google Client ID (for Continue with Google)<input id='gid' value='${adH(GID()||'').replace(/'/g,'&#39;')}' placeholder='123456-abc.apps.googleusercontent.com'></label><p class='sm'>Without a Client ID the Google button explains that it is not connected yet.</p>${sv('sg')}</div>`;
  if(S.cs==='fb')h=lvAdminCard()+`<div class='card'><label class='sm'>Club badge lookup key (TheSportsDB). Leave empty for the free key.<input id='ak' value='${adH(CFG.key||'').replace(/'/g,'&#39;')}'></label>${sv('sk')}</div>`;
- if(S.cs==='data')h=`<div class='card'><h3 style='margin:0 0 8px'>Backup</h3><div style='display:flex;gap:8px;flex-wrap:wrap'><button class='chip' id='xs'>Export settings</button><label class='chip' style='cursor:pointer'>Import settings<input type='file' id='is' accept='application/json' hidden></label><button class='chip' id='xu'>Export users CSV</button></div><div class='sm' id='dm2' style='margin-top:8px'>Settings exports leave out the admin login but include gateway and email service URLs and keys, so store the file safely.</div></div><div class='card' style='margin-top:14px'><h3 style='margin:0 0 4px'>Club logos</h3><p class='sm' style='margin:0 0 8px'>Badges for the live competitions now load by themselves, so you rarely need this. It looks up every club in the old club list (${crAllNames().length} clubs) and sends hundreds of requests, so do not run it on a free football data plan. It pauses by itself when needed. Then use Export, and put the downloaded <b>crests.json</b> next to index.html so every visitor gets all logos instantly.</p><div style='display:flex;gap:8px;flex-wrap:wrap'><button class='chip' id='cls'>Download all club logos</button><button class='chip' id='clx'>Stop</button><button class='chip' id='cle'>Export crests.json</button><button class='chip' id='clc'>Clear logo cache</button></div><div class='sm' id='clp' style='margin-top:8px'>Logos saved so far: ${crAllNames().filter(n=>crUrl(n)).length} of ${crAllNames().length}.</div></div><div class='card' style='margin-top:14px;border-color:var(--red)'><h3 style='margin:0 0 6px;color:var(--red)'>Danger zone</h3><p class='sm' style='margin:0 0 10px'>Deletes all admin settings, custom competitions, announcements, the activity log and the admin login. User accounts are kept.</p><button class='chip ad-danger' id='rs'>Reset everything</button></div>`;
+ if(S.cs==='data')h=`<div class='card'><h3 style='margin:0 0 8px'>Backup</h3><div style='display:flex;gap:8px;flex-wrap:wrap'><button class='chip' id='xs'>Export settings</button><label class='chip' style='cursor:pointer'>Import settings<input type='file' id='is' accept='application/json' hidden></label><button class='chip' id='xu'>Export users CSV</button></div><div class='sm' id='dm2' style='margin-top:8px'>Settings exports omit the admin login and AI gateway token. Other configuration may still contain operational details; store backups safely.</div></div><div class='card' style='margin-top:14px'><h3 style='margin:0 0 4px'>Club logos</h3><p class='sm' style='margin:0 0 8px'>Badges for the live competitions now load by themselves, so you rarely need this. It looks up every club in the old club list (${crAllNames().length} clubs) and sends hundreds of requests, so do not run it on a free football data plan. It pauses by itself when needed. Then use Export, and put the downloaded <b>crests.json</b> next to index.html so every visitor gets all logos instantly.</p><div style='display:flex;gap:8px;flex-wrap:wrap'><button class='chip' id='cls'>Download all club logos</button><button class='chip' id='clx'>Stop</button><button class='chip' id='cle'>Export crests.json</button><button class='chip' id='clc'>Clear logo cache</button></div><div class='sm' id='clp' style='margin-top:8px'>Logos saved so far: ${crAllNames().filter(n=>crUrl(n)).length} of ${crAllNames().length}.</div></div><div class='card' style='margin-top:14px;border-color:var(--red)'><h3 style='margin:0 0 6px;color:var(--red)'>Danger zone</h3><p class='sm' style='margin:0 0 10px'>Deletes all admin settings, custom competitions, announcements, the activity log and the admin login. User accounts are kept.</p><button class='chip ad-danger' id='rs'>Reset everything</button></div>`;
  b.innerHTML=`<div class='ad-sub'>${ADSUB.map(([k,l])=>`<button class='chip' data-cs='${k}' aria-pressed='${S.cs===k}'>${l}</button>`).join('')}</div><div class='card ad-text-controls'><b>Admin display</b><span class='sm'>Adjust the text size across the admin panel.</span><div class='kp-sz' style='margin-top:8px'><span>Text size</span>${[['xs','A−'],['s','A'],['normal','A+'],['large','A++']].map(([k,l])=>`<button type='button' data-ad-size='${k}' aria-pressed='${(localStorage.getItem('ft_size')||'normal')===k}'>${l}</button>`).join('')}</div></div>${h}`;
  document.querySelectorAll('[data-cs]').forEach(x=>x.onclick=()=>{S.cs=x.dataset.cs;adCtl(b)});
   document.querySelectorAll('[data-ad-size]').forEach(x=>x.onclick=()=>{setSize(x.dataset.adSize);adCtl(b)});
@@ -1428,7 +1453,7 @@ function adCtl(b){
   on('cls',()=>{if(S.crRun)return;S.crRun=1;crSync(t=>{const e=$('#clp');if(e)e.textContent=t}).finally(()=>{S.crRun=0})});on('clx',()=>{S.crStop=1;say('clp','Stopping... it will stop after the current request.')});
   on('cle',()=>adDl('crests.json',JSON.stringify(Object.fromEntries(Object.entries(CRM).filter(([k,v])=>typeof v==='string')),null,1),'application/json'));
   on('clc',()=>{Object.keys(CRM).forEach(k=>delete CRM[k]);CRC.s(CRM);try{localStorage.removeItem('ft_crlg')}catch(e){}say('clp','Logo cache cleared.')});
-  on('xs',()=>{const o={...CFG};delete o.ph;delete o.admin;adDl('settings.json',JSON.stringify(o,null,2),'application/json')});
+  on('xs',()=>{const o={...CFG};delete o.ph;delete o.admin;delete o.aiKey;adDl('settings.json',JSON.stringify(o,null,2),'application/json')});
   on('xu',()=>adDl('users.csv',adCsv([['username','email','type','sign-in','joined','last login','logins','saved predictions'],...Object.entries(USERS).map(([e,u])=>{const l=adLast(u);return[u.username,e,u.type,u.google?'Google':'Password',new Date(u.created).toISOString(),l?new Date(l.t).toISOString():'',(u.logins||[]).length,(u.preds||[]).length]})]),'text/csv'));
   $('#is').onchange=e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{try{const o=JSON.parse(r.result);if(!o||typeof o!=='object'||Array.isArray(o))throw 0;['off','custom','offT','add','def','feat','ann','contact','aiUrl','key'].forEach(k=>{if(Object.prototype.hasOwnProperty.call(o,k))CFG[k]=o[k]});saveCfg();logEv('admin_import_settings',f.name,'Admin');say('dm2','Settings imported. Reloading…');setTimeout(()=>location.reload(),600)}catch(x){say('dm2','That file is not a valid settings export.')}};r.readAsText(f)};
   on('rs',()=>{if(confirm('Delete all admin settings, custom competitions, announcements, the activity log and the admin login? User accounts are kept.')){try{localStorage.removeItem('ft_cfg');localStorage.removeItem('ft_log')}catch(e){}S.adm=0;location.reload()}})}}
@@ -2064,6 +2089,10 @@ Refresh|Actualiser|Actualizar|تحديث
 Refreshing…|Actualisation…|Actualizando…|جارٍ التحديث…
 Later|Plus tard|Más tarde|لاحقاً
 Live table: includes matches in play and results the official table has not counted yet.|Classement en direct : inclut les matchs en cours et les résultats pas encore comptés dans le classement officiel.|Tabla en vivo: incluye los partidos en juego y los resultados que la tabla oficial aún no ha contado.|جدول مباشر: يشمل المباريات الجارية والنتائج التي لم يحتسبها الجدول الرسمي بعد.
+You're offline|Vous êtes hors ligne|Estás sin conexión|أنت غير متصل بالإنترنت
+Turn on your internet connection (Wi-Fi or mobile data) to use Full Time. It will reconnect on its own.|Activez votre connexion internet (Wi-Fi ou données mobiles) pour utiliser Full Time. La reconnexion se fera automatiquement.|Activa tu conexión a internet (Wi-Fi o datos móviles) para usar Full Time. Se reconectará automáticamente.|فعّل اتصال الإنترنت (واي فاي أو بيانات الجوال) لاستخدام Full Time. ستتم إعادة الاتصال تلقائياً.
+Try again|Réessayer|Intentar de nuevo|حاول مرة أخرى
+You're offline. Turn on your internet to sign in and get live scores.|Vous êtes hors ligne. Activez internet pour vous connecter et voir les scores en direct.|Estás sin conexión. Activa internet para iniciar sesión y ver los marcadores en vivo.|أنت غير متصل. فعّل الإنترنت لتسجيل الدخول ومتابعة النتائج المباشرة.
 Copied|Copié|Copiado|تم النسخ`.split('\n').forEach(l=>{const a=l.split('|');if(a.length===4&&a[0])TRD[a[0]]=[a[1],a[2],a[3]]});
 String.raw`^Home (\d+)%$|||Domicile {1} %|||Local {1} %|||المضيف {1}٪
 ^Draw (\d+)%$|||Nul {1} %|||Empate {1} %|||تعادل {1}٪
@@ -2310,7 +2339,8 @@ function acct(){const u=me(),em=S.userMode?'admin-preview':sess();u.set=u.set||{
  $('#da').onclick=()=>{if(confirm('Delete your account and all saved predictions?')){if(CLOUD()){cDelete();return}delete USERS[em];saveMe();signOut()}}}
 const TABS=[['home','Home'],['teams','Teams'],['players','Players'],['matchdays','Match days'],['analysis','AI analysis'],['polls','Polls'],['mine','My predictions'],['contact','Contact admin'],['acct','Settings']],V={home,teams,players,matchdays,analysis,admin,mine,acct,polls:pollsView,contact:contactView};
 Object.keys(V).forEach(k=>{const f=V[k];V[k]=function(){f.apply(this,arguments);const c=app.firstElementChild;if(k!=='admin'&&!(c&&c.tagName==='H2')){const t=(TABS.find(x=>x[0]===k)||[0,k==='admin'?'Admin':k])[1];app.insertAdjacentHTML('afterbegin',`<h2 class='pgt'>${TR(t)}</h2>`)}}});
-function show(){if(me()&&!location.hash)history.replaceState(null,'','#home');let t=location.hash.slice(1);if(t==='admin-setup'&&!CFG.admin&&!me()&&!CLOUD()){history.replaceState(null,'','#home');S.ag='setup';adGate();return}if(t==='admin'||t==='admin-setup'){history.replaceState(null,'','#home');t='home'}S.tab=V[t]?t:'home';document.body.classList.toggle('adm-on',S.tab==='admin');
+function show(){if(netHard()){document.body.classList.remove('adm-on','nd-on','mt-on');const n=$('#nav');if(n)n.innerHTML='';const h=$('#hmenu');if(h)h.hidden=true;app.innerHTML=offHtml();const b=$('#offRetry');if(b)b.onclick=()=>{if(netOff())show();else location.reload()};return}
+ if(me()&&!location.hash)history.replaceState(null,'','#home');let t=location.hash.slice(1);if(t==='admin-setup'&&!CFG.admin&&!me()&&!CLOUD()){history.replaceState(null,'','#home');S.ag='setup';adGate();return}if(t==='admin'||t==='admin-setup'){history.replaceState(null,'','#home');t='home'}S.tab=V[t]?t:'home';document.body.classList.toggle('adm-on',S.tab==='admin');
  if(me())S.mtLogin=0;
  if(FEAT().maint&&S.tab!=='admin'&&!mtAdmin()){if(!document.body.classList.contains('mt-on'))S.mtY=window.scrollY;document.body.classList.add('mt-on');document.body.classList.remove('nd-on');$('#nav').innerHTML='';const hm0=$('#hmenu');if(hm0)hm0.hidden=true;app.innerHTML=maintHtml();return}
  {const wasMt=document.body.classList.contains('mt-on');document.body.classList.remove('mt-on');if(wasMt&&S.mtY!=null){const y=S.mtY;S.mtY=null;setTimeout(()=>window.scrollTo(0,y),80);setTimeout(()=>window.scrollTo(0,y),500)}}
@@ -2465,6 +2495,9 @@ function updUI(){let el=document.getElementById('updbar');const inApp=!!(S.adm||
  if(el)return;el=document.createElement('div');el.id='updbar';el.setAttribute('role','status');
  el.innerHTML=`<span>${tx('A new version of Full Time is ready.')}</span><button class='ub' type='button'>${tx('Refresh')}</button><button class='ux' type='button'>${tx('Later')}</button>`;
  el.querySelector('.ub').onclick=updGo;el.querySelector('.ux').onclick=()=>{UPD.hide=1;el.remove()};document.body.appendChild(el)}
+addEventListener('online',()=>{if(window.FT_CFG_LOST)location.reload();else{netUI();try{lvPoll()}catch(e){}}});
+addEventListener('offline',()=>{if(netHard())show();else netUI()});
+netUI();
 setTimeout(updCheck,4000);setInterval(updCheck,120000);setInterval(updUI,4000);
 document.addEventListener('visibilitychange',()=>{if(!document.hidden&&Date.now()-UPD.last>45000)updCheck()});
 document.addEventListener('visibilitychange',()=>{if(!document.hidden){cWatch();adTick()}});
