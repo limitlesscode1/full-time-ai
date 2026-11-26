@@ -1243,11 +1243,41 @@ const LOGO='data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMj
 const AU_USER='autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false"',AU_MAIL='autocomplete="email" autocapitalize="none" autocorrect="off" spellcheck="false"',AU_CUR='autocomplete="current-password"',AU_NEW='autocomplete="new-password"';
 const SB=()=>!!(FT.supabaseUrl&&FT.supabaseAnonKey);
 /* ---- offline: say so plainly instead of showing wrong "not connected" / "sign in" messages ---- */
-const netOff=()=>navigator.onLine===false;
+/* A successful same-origin probe overrides a stale navigator.onLine=false briefly.
+   Some mobile browsers do not update that flag promptly after data is restored. */
+let ftNetReachableUntil=0;
+const netOff=()=>navigator.onLine===false&&Date.now()>ftNetReachableUntil;
 const netHard=()=>netOff()&&!!window.FT_CFG_LOST;   /* offline and the site has never loaded its settings: nothing can work */
 function offHtml(){return`<div class='card offcard' role='alert'><svg viewBox='0 0 24 24' width='56' height='56' fill='none' stroke='currentColor' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round' aria-hidden='true'><path d='M2 8.8a15 15 0 0 1 4.2-2.6M22 8.8A15 15 0 0 0 10.5 5.1M5 12.9a10 10 0 0 1 3.4-2M19 12.9a10 10 0 0 0-5.6-2.8M8.5 16.4a5 5 0 0 1 7 0M12 20h.01M3 3l18 18'/></svg><h2 style='margin:8px 0'>${tx("You're offline")}</h2><p style='margin:0 0 16px'>${tx('Turn on your internet connection (Wi-Fi or mobile data) to use Full Time. It will reconnect on its own.')}</p><button class='chip' id='offRetry' type='button'>${tx('Try again')}</button></div>`}
 function netUI(){let el=document.getElementById('offbar');const on=netOff()&&!netHard();if(!on){if(el)el.remove();return}
- if(el)return;el=document.createElement('div');el.id='offbar';el.setAttribute('role','status');el.innerHTML=`<span>${tx("You're offline. Turn on your internet to sign in and get live scores.")}</span>`;document.body.appendChild(el)}
+ if(el)return;el=document.createElement('div');el.id='offbar';el.setAttribute('role','status');el.innerHTML=`<span>${tx("You're offline. Turn on your internet to sign in and get live scores.")}</span> <button type='button' class='chip' id='netRetry' style='margin-left:8px'>${tx('Try again')}</button>`;document.body.appendChild(el);const b=document.getElementById('netRetry');if(b)b.onclick=ftNetRecover}
+/* navigator.onLine can remain stale on some devices. Probe this origin and retry
+   automatically while offline, including when the app had already loaded its settings. */
+let ftNetBusy=0,ftNetTimer=0;
+async function ftNetProbe(){
+ try{
+  const u=new URL(location.href);u.searchParams.set('_netcheck',String(Date.now()));
+  let r=await fetch(u.href,{method:'HEAD',cache:'no-store',credentials:'same-origin'});
+  if(r.status>=500){r=await fetch(u.href,{method:'GET',cache:'no-store',credentials:'same-origin'});}
+  return r.status<500;
+ }catch(e){return false}
+}
+async function ftNetRecover(){if(ftNetBusy)return;ftNetBusy=1;try{
+ const ok=await ftNetProbe();if(!ok){netUI();return}
+ /* Treat the successful probe as proof of connectivity even if the browser flag is stale. */
+ ftNetReachableUntil=Date.now()+90000;
+ if(window.FT_CFG_LOST){location.reload();return}
+ netUI();
+ document.querySelectorAll('.cr[data-cr]').forEach(s=>{delete s.dataset.ob});
+ Object.keys(CRM).forEach(k=>{if(typeof CRM[k]==='number')delete CRM[k]});
+ Object.keys(CRB).forEach(k=>delete CRB[k]);
+ try{CRC.s(CRM);crScan();if(CRQ.length)crRun()}catch(e){}
+ Object.values(LV.lg).forEach(L=>{if(L&&L.err){L.at=0;L.err=''}});
+ /* Refresh match data without waiting for the next scheduled polling cycle. */
+ try{await lvAll(true);await lvStatus();await lvPoll()}catch(e){}
+ if(!lvBusy())show();else LV.dirty=1;
+ }finally{ftNetBusy=0}}
+function ftNetWatch(){clearTimeout(ftNetTimer);if(netOff())ftNetTimer=setTimeout(async()=>{await ftNetRecover();if(netOff())ftNetWatch()},3000)}
 const DEMO_OK=()=>/^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname)||location.protocol==='file:';
 CFG.custom.forEach(c=>{KNOWN[c.n]={T:c.T,full:0,c:c.c}});
 const loadLog=()=>{try{return JSON.parse(localStorage.getItem('ft_log')||'[]')}catch(e){return[]}};
@@ -1653,7 +1683,9 @@ const crFb=n=>{const t=crInit(n),hu=h(String(n))%360;return`<svg viewBox='0 0 40
 const crUrl=n=>{const u=(FT.crests&&FT.crests[n])||(CFG.crests&&CFG.crests[n])||CRM[n];return typeof u==='string'&&/^https:\/\//.test(u)?u:''};
 const crest=(n,z)=>{n=String(n==null?'':n).trim();const u=crUrl(n);return`<span class='cr ${z||'m'}' data-cr='${adH(n)}'${u?` data-ld='1'`:''}>${u?`<img src='${adH(u)}' alt='' loading='lazy' decoding='async' referrerpolicy='no-referrer'>`:crFb(n)}</span>`};
 const tmx=(n,z)=>`<span class='tmx'>${crest(n,z||'s')}<span>${adH(n)}</span></span>`;
-async function crFail(n,s){if(!n||CRF[n])return;CRF[n]=1;if(s&&s.isConnected){delete s.dataset.ld;s.innerHTML=crFb(n);delete s.dataset.ob}CRM[n]=Date.now();CRC.s(CRM);try{const u=await crFetch(n,true);if(u){CRM[n]=u;CRC.s(CRM);crApply(n,u)}else CRM[n]=Date.now()}catch(e){CRM[n]=Date.now()}finally{CRC.s(CRM);delete CRF[n]}}
+async function crFail(n,s){if(!n||CRF[n])return;CRF[n]=1;if(s&&s.isConnected){delete s.dataset.ld;s.innerHTML=crFb(n);delete s.dataset.ob}
+ if(netOff()){delete CRM[n];CRC.s(CRM);delete CRF[n];return}
+ CRM[n]=Date.now();CRC.s(CRM);try{const u=await crFetch(n,true);if(u){CRM[n]=u;CRC.s(CRM);crApply(n,u)}else CRM[n]=Date.now()}catch(e){if(netOff())delete CRM[n];else CRM[n]=Date.now()}finally{CRC.s(CRM);delete CRF[n]}}
 document.addEventListener('error',e=>{const i=e.target;if(!i||i.tagName!=='IMG'||!i.closest)return;const s=i.closest('.cr');if(s)crFail(s.dataset.cr,s)},true);
 const crPick=(n,L)=>{const w=nrm(n);let hint;try{hint=tcOf(n)}catch(e){}let best=null,bs=0;L.forEach(x=>{if(x.strSport&&x.strSport!=='Soccer')return;if(!(x.strBadge||x.strTeamBadge))return;const nm=[x.strTeam,x.strTeamShort,...String(x.strTeamAlternate||'').split(',')].map(nrm).filter(Boolean);let sc=0;const ct=!!(hint&&x.strCountry&&x.strCountry.toLowerCase()===hint.toLowerCase());if(nm.includes(w))sc=3;else if(ct&&nm.some(z=>(z.length>=4&&w.includes(z))||(w.length>=4&&z.includes(w))))sc=2;if(!sc)return;if(hint&&x.strCountry&&!ct)return;if(ct)sc++;if(sc>bs){bs=sc;best=x}});return best};
 const crBadge=b=>{let u=b?(b.strBadge||b.strTeamBadge||''):'';if(u&&/thesportsdb\.com/.test(u)&&!/\/(tiny|small|medium|large)$/.test(u))u+='/small';return u.replace(/^http:/,'https:')};
@@ -1696,9 +1728,9 @@ const crPlaceholder=n=>/^[A-Za-z0-9.\-]{1,8} [A-Z]$/.test(n);
 async function crRun(){if(CRrun)return;CRrun=1;try{while(CRQ.length){if(Date.now()<CRhold)await crSleep(CRhold-Date.now());const n=CRQ.shift();if(crUrl(n)||crMissRecent(n))continue;
  const lg=typeof domOf==='function'?domOf(n):undefined;
  if(lg&&CRLG[lg]&&!CRLGT[lg]&&!crLgFresh(lg)){CRLGT[lg]=1;try{await crBulk(lg)}catch(e){if(e&&e.rate){CRhold=Date.now()+65e3;CRLGT[lg]=0;CRQ.unshift(n);continue}}if(crUrl(n))continue}
- let u;try{u=await crFetch(n)}catch(e){if(e&&e.rate){CRhold=Date.now()+65e3;CRQ.unshift(n)}else CRB[n]=1;continue}
+ let u;try{u=await crFetch(n)}catch(e){if(e&&e.rate){CRhold=Date.now()+65e3;CRQ.unshift(n)}else if(netOff()){CRQ.unshift(n);break}else CRB[n]=Date.now();continue}
  CRM[n]=u||Date.now();CRC.s(CRM);if(u)crApply(n,u);await crSleep(120)}}finally{CRrun=0}}
-const crWant=n=>{if(!n||crPlaceholder(n)||crUrl(n)||CRB[n]||crMissRecent(n)||CRQ.includes(n))return;CRQ.push(n);crRun()};
+const crWant=n=>{if(!n||crPlaceholder(n)||crUrl(n)||(CRB[n]&&Date.now()-CRB[n]<6e4)||crMissRecent(n)||CRQ.includes(n))return;delete CRB[n];CRQ.push(n);crRun()};
 const crIO='IntersectionObserver' in window?new IntersectionObserver(es=>es.forEach(e=>{if(e.isIntersecting){crIO.unobserve(e.target);crWant(e.target.dataset.cr)}}),{rootMargin:'200px'}):null;
 const crScan=()=>document.querySelectorAll('.cr[data-cr]:not([data-ld]):not([data-ob])').forEach(s=>{s.dataset.ob='1';crIO?crIO.observe(s):crWant(s.dataset.cr)});
 {let t=0;new MutationObserver(()=>{clearTimeout(t);t=setTimeout(crScan,60)}).observe(document.getElementById('app'),{childList:true,subtree:true})}
@@ -2339,7 +2371,7 @@ function acct(){const u=me(),em=S.userMode?'admin-preview':sess();u.set=u.set||{
  $('#da').onclick=()=>{if(confirm('Delete your account and all saved predictions?')){if(CLOUD()){cDelete();return}delete USERS[em];saveMe();signOut()}}}
 const TABS=[['home','Home'],['teams','Teams'],['players','Players'],['matchdays','Match days'],['analysis','AI analysis'],['polls','Polls'],['mine','My predictions'],['contact','Contact admin'],['acct','Settings']],V={home,teams,players,matchdays,analysis,admin,mine,acct,polls:pollsView,contact:contactView};
 Object.keys(V).forEach(k=>{const f=V[k];V[k]=function(){f.apply(this,arguments);const c=app.firstElementChild;if(k!=='admin'&&!(c&&c.tagName==='H2')){const t=(TABS.find(x=>x[0]===k)||[0,k==='admin'?'Admin':k])[1];app.insertAdjacentHTML('afterbegin',`<h2 class='pgt'>${TR(t)}</h2>`)}}});
-function show(){if(netHard()){document.body.classList.remove('adm-on','nd-on','mt-on');const n=$('#nav');if(n)n.innerHTML='';const h=$('#hmenu');if(h)h.hidden=true;app.innerHTML=offHtml();const b=$('#offRetry');if(b)b.onclick=()=>{if(netOff())show();else location.reload()};return}
+function show(){if(netHard()){document.body.classList.remove('adm-on','nd-on','mt-on');const n=$('#nav');if(n)n.innerHTML='';const h=$('#hmenu');if(h)h.hidden=true;app.innerHTML=offHtml();const b=$('#offRetry');if(b)b.onclick=ftNetRecover;ftNetWatch();return}
  if(me()&&!location.hash)history.replaceState(null,'','#home');let t=location.hash.slice(1);if(t==='admin-setup'&&!CFG.admin&&!me()&&!CLOUD()){history.replaceState(null,'','#home');S.ag='setup';adGate();return}if(t==='admin'||t==='admin-setup'){history.replaceState(null,'','#home');t='home'}S.tab=V[t]?t:'home';document.body.classList.toggle('adm-on',S.tab==='admin');
  if(me())S.mtLogin=0;
  if(FEAT().maint&&S.tab!=='admin'&&!mtAdmin()){if(!document.body.classList.contains('mt-on'))S.mtY=window.scrollY;document.body.classList.add('mt-on');document.body.classList.remove('nd-on');$('#nav').innerHTML='';const hm0=$('#hmenu');if(hm0)hm0.hidden=true;app.innerHTML=maintHtml();return}
@@ -2495,9 +2527,9 @@ function updUI(){let el=document.getElementById('updbar');const inApp=!!(S.adm||
  if(el)return;el=document.createElement('div');el.id='updbar';el.setAttribute('role','status');
  el.innerHTML=`<span>${tx('A new version of Full Time is ready.')}</span><button class='ub' type='button'>${tx('Refresh')}</button><button class='ux' type='button'>${tx('Later')}</button>`;
  el.querySelector('.ub').onclick=updGo;el.querySelector('.ux').onclick=()=>{UPD.hide=1;el.remove()};document.body.appendChild(el)}
-addEventListener('online',()=>{if(window.FT_CFG_LOST)location.reload();else{netUI();try{lvPoll()}catch(e){}}});
-addEventListener('offline',()=>{if(netHard())show();else netUI()});
-netUI();
+addEventListener('online',()=>{netUI();ftNetRecover()});
+addEventListener('offline',()=>{if(netHard())show();else netUI();ftNetWatch()});
+netUI();if(netOff())ftNetWatch();
 setTimeout(updCheck,4000);setInterval(updCheck,120000);setInterval(updUI,4000);
 document.addEventListener('visibilitychange',()=>{if(!document.hidden&&Date.now()-UPD.last>45000)updCheck()});
 document.addEventListener('visibilitychange',()=>{if(!document.hidden){cWatch();adTick()}});
