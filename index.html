@@ -1494,10 +1494,20 @@ const esc=s=>String(s).replace(/[<>&"'`\\]/g,'');
 const cleanName=s=>String(s==null?'':s).replace(/[<>&"'`\\]/g,'').replace(/\s+/g,' ').trim().slice(0,60);
 function vet(hn,an,comp,ext){
  const K=KNOWN[comp],bad=s=>!s||s.trim().length<3||!/[a-z\u00C0-\u024F]{3}/i.test(s);
- if(LV.lg[comp]&&DATA[comp]&&!ext){const T=DATA[comp].T;if(bad(hn)||bad(an))return{m:'Enter two real team names.'};const q=x=>nrm(String(x||'')),find=x=>T.find(t=>t.toLowerCase()===String(x).trim().toLowerCase())||T.find(t=>q(t)===q(x))||(q(x).length>=4?T.find(t=>q(t).includes(q(x))):undefined);const H=find(hn),A=find(an);if(H&&H===A)return{m:'Choose two different teams.'};const e=[[H,hn],[A,an]].filter(x=>!x[0]).map(x=>'\u201C'+adH(String(x[1]).trim())+'\u201D is not a team in the '+adH(comp)+'.');if(e.length)return{m:e.join(' ')+' Pick teams from the list.'};return{ok:1,H,A}}
- if(!K)return{m:'Select a competition first.'};
- if(bad(hn)||bad(an))return{m:'Enter two real team names.'};
- if(hn.trim().toLowerCase()===an.trim().toLowerCase())return{m:'Choose two different teams.'};
+ if(!comp||String(comp).trim().length<3)return{m:'Enter a competition or tournament name.'};
+ if(bad(hn)||bad(an))return{m:'Enter both team names (at least 3 characters each).'};
+ if(nrm0(hn)===nrm0(an))return{m:'Choose two different teams.'};
+ if(ext&&!K){
+  // Free-text competitions are valid here. The built-in list is a suggestion catalogue, not an allowlist.
+  return{ok:1,H:fnd(hn)||cleanName(hn),A:fnd(an)||cleanName(an),unlistedCompetition:1};
+ }
+ if(!K&& !ext)return{m:'Select a competition first.'};
+ if(ext&&K){
+  // For an external competition already known to the app, keep known team aliases but do not
+  // make the local list the final authority; the live lookup and research prompt verify membership.
+  return{ok:1,H:fnd(hn)||cleanName(hn),A:fnd(an)||cleanName(an)};
+ }
+ if(LV.lg[comp]&&DATA[comp]&&!ext){const T=DATA[comp].T;const q=x=>nrm(String(x||'')),find=x=>T.find(t=>t.toLowerCase()===String(x).trim().toLowerCase())||T.find(t=>q(t)===q(x))||(q(x).length>=4?T.find(t=>q(t).includes(q(x))):undefined);const H=find(hn),A=find(an);if(H&&H===A)return{m:'Choose two different teams.'};const e=[[H,hn],[A,an]].filter(x=>!x[0]).map(x=>'\u201C'+adH(String(x[1]).trim())+'\u201D is not a team in the '+adH(comp)+'.');if(e.length)return{m:e.join(' ')+' Pick teams from the list.'};return{ok:1,H,A}}
  const H=fnd(hn),A=fnd(an),ctry=tcOf;
  const chk=(t,n)=>{if(!t)return K.full?`\u201C${adH(n.trim())}\u201D is not a team in the ${adH(comp)}.`:'';
   if(K.T.includes(t)||(!K.full&&!K.low&&(K.reg?(K.reg==='*'||K.reg.includes(ctry(t))):K.c&&ctry(t)===K.c)))return'';
@@ -1654,15 +1664,15 @@ function teams(){const c=S.country,R=roundOf(c,0),FN=S.fn||5,TB=c==='UEFA Super 
 function ext(top,sw){
  S.xAnalysisType=S.xAnalysisType||'domestic';
  const X=S.xv,v=id=>X[id]||'',E=Object.keys(KNOWN).filter(k=>!KNOWN[k].full&&!CFG.off.includes(k)).sort((a,b)=>a.localeCompare(b,undefined,{sensitivity:'base'})),inp=(id,l,ph)=>`<label class='sm'>${l}<input id='${id}' placeholder='${ph||''}' value='${v(id).replace(/'/g,'&#39;')}'></label>`;
- if(!E.includes(X.x_lg))X.x_lg=E[0];
+ if(!X.x_lg)X.x_lg=E[0]||'';
  const tb=(id,l)=>`<div class='dd fcol' data-id='${id}'><span class='sm'>${l}</span><input id='${id}' placeholder='${l}' autocomplete='off' value='${v(id).replace(/'/g,'&#39;')}'><ul class='ddl' hidden></ul></div>`;
  DDH.xc=u=>{if(!u)return;X.x_lg=u;S.xchk=null;S.aix=null;S.ap=null;X.x_ver='';analysis()};
- app.innerHTML=top+`<div class='card'><h3 style='margin:0 0 10px'>Predict other teams and clubs</h3><div class='note' style='margin-bottom:10px'>Choose a competition outside the app, then select the two teams you want to analyse.</div><div class='dd fcol' data-id='xc' style='margin-bottom:10px'><span class='sm'>Competition</span><input id='cq' placeholder="${X.x_lg.replace(/\"/g,'&quot;')}" autocomplete='off' value="${X.x_lg.replace(/"/g,'&quot;')}"><ul class='ddl' hidden></ul></div><div class='sm' style='margin:4px 0 6px'>Competition type</div><div class='chips' id='xmode'><button type='button' class='chip' data-xmode='domestic' aria-pressed='${(S.xAnalysisType||'domestic')==='domestic'}'>Domestic league</button><button type='button' class='chip' data-xmode='interclub' aria-pressed='${S.xAnalysisType==='interclub'}'>Interclub competition</button></div><div class='fgrid'>${tb('x_hn','Home team')}${tb('x_an','Away team')}</div><button class='chip' id='ck' style='margin-top:12px;background:var(--acc);color:var(--acc-ink)'>Check teams</button><div id='cres' style='margin-top:12px'></div></div><div id='xform'></div><div id='aipx'></div><div id='out'></div>`;
+ app.innerHTML=top+`<div class='card'><h3 style='margin:0 0 10px'>Predict other teams and clubs</h3><div class='note' style='margin-bottom:10px'>Search the suggested competitions or type any tournament or league name. The list is a set of examples, not a restriction.</div><div class='dd fcol' data-id='xc' style='margin-bottom:10px'><span class='sm'>Competition</span><input id='cq' placeholder='Search or type any competition' autocomplete='off' value="${adH(X.x_lg)}"><ul class='ddl' hidden></ul></div><div class='sm' style='margin:4px 0 6px'>Competition type</div><div class='chips' id='xmode'><button type='button' class='chip' data-xmode='domestic' aria-pressed='${(S.xAnalysisType||'domestic')==='domestic'}'>Domestic league</button><button type='button' class='chip' data-xmode='interclub' aria-pressed='${S.xAnalysisType==='interclub'}'>Interclub competition</button></div><div class='fgrid'>${tb('x_hn','Home team')}${tb('x_an','Away team')}</div><button class='chip' id='ck' style='margin-top:12px;background:var(--acc);color:var(--acc-ink)'>Check teams</button><div id='cres' style='margin-top:12px'></div></div><div id='xform'></div><div id='aipx'></div><div id='out'></div>`;
  app.oninput=e=>{if((e.target.id||'').startsWith('x_'))X[e.target.id]=e.target.value};
  document.querySelectorAll('#xmode [data-xmode]').forEach(b=>b.onclick=()=>{S.xAnalysisType=b.dataset.xmode;S.xchk=null;S.xmsg='';S.aix=null;S.ap=null;analysis()});
- {const K=KNOWN[X.x_lg];let pool=K.T.length?K.T:ALLT.filter(t=>K.reg?(K.reg==='*'||K.reg.includes(tcOf(t))):K.c&&!K.low&&tcOf(t)===K.c);
-  const cb=$('#cq'),cl=cb.nextElementSibling,cf=()=>{const q=cb.value.toLowerCase().trim(),m=E.filter(k=>!q||(k+' '+(KNOWN[k].c||'')).toLowerCase().includes(q)).sort((a,b)=>a.localeCompare(b,undefined,{sensitivity:'base'}));cl.innerHTML=m.length?m.map(k=>`<li data-v="${k.replace(/"/g,'&quot;')}">${k}${KNOWN[k].c?` <span class='sm'>${KNOWN[k].c}</span>`:''}</li>`).join(''):`<li style='cursor:default'>No competition found</li>`;cl.hidden=false};
-  cb.oninput=cf;cb.onfocus=()=>{cb.value='';cf()};cb.addEventListener('click',e=>{e.stopPropagation();cf()});cb.onblur=()=>{setTimeout(()=>{if(E.includes(X.x_lg))cb.value=X.x_lg},250)};
+ {const K=KNOWN[X.x_lg]||{T:[],full:0,c:'',reg:null};let pool=K.T.length?K.T:ALLT.filter(t=>K.reg?(K.reg==='*'||K.reg.includes(tcOf(t))):K.c&&!K.low&&tcOf(t)===K.c);
+  const cb=$('#cq'),cl=cb.nextElementSibling,cf=()=>{const raw=cb.value.trim(),q=raw.toLowerCase(),m=E.filter(k=>!q||(k+' '+(KNOWN[k].c||'')).toLowerCase().includes(q)).sort((a,b)=>a.localeCompare(b,undefined,{sensitivity:'base'}));const custom=raw.length>=3&&!E.some(k=>nrm0(k)===nrm0(raw));cl.innerHTML=(custom?`<li data-v="${adH(raw)}"><b>Use “${adH(raw)}”</b> <span class='sm'>Custom competition</span></li>`:'')+(m.length?m.map(k=>`<li data-v="${adH(k)}">${adH(k)}${KNOWN[k].c?` <span class='sm'>${adH(KNOWN[k].c)}</span>`:''}</li>`).join(''):`${custom?'':`<li style='cursor:default'>No matching suggestion. You can still use the competition name you typed.</li>`}`);cl.hidden=false};
+  cb.oninput=()=>{X.x_lg=cleanName(cb.value);S.xchk=null;X.x_ver='';const meta=KNOWN[X.x_lg]||{T:[],full:0,c:'',reg:null};pool=meta.T.length?meta.T:ALLT.filter(t=>meta.reg?(meta.reg==='*'||meta.reg.includes(tcOf(t))):meta.c&&!meta.low&&tcOf(t)===meta.c);if(!meta.T.length&&X.x_lg.length>=3){const compName=X.x_lg;liveRoster(compName).then(L=>{if(L&&L.length&&X.x_lg===compName){pool=L;['x_hn','x_an'].forEach(id=>{const el=$('#'+id);if(el&&el.value){const q=el.value.toLowerCase(),m=pool.filter(t=>t.toLowerCase().includes(q)),list=el.nextElementSibling;list.innerHTML=m.map(t=>`<li data-v=\"${adH(t)}\">${tmx(t)}</li>`).join('');list.hidden=!m.length}})}})}cf()};cb.onfocus=cf;cb.addEventListener('click',e=>{e.stopPropagation();cf()});cb.onblur=()=>{setTimeout(()=>{if(X.x_lg)cb.value=X.x_lg;cl.hidden=true},250)};
   ['x_hn','x_an'].forEach(id=>{const i=$('#'+id),l=i.nextElementSibling,f=()=>{X[id]=i.value;const q=i.value.toLowerCase(),m=pool.filter(t=>t.toLowerCase().includes(q));l.innerHTML=m.length?m.map(t=>`<li data-v="${t}">${t}</li>`).join(''):`<li class='sm' style='cursor:default'>${pool.length?'Not in this competition\u2019s list. Other teams are searched below, or type any team name.':'No team list for this competition yet. Type the team name; the outside AI will check it.'}</li>`;l.hidden=false;xsRemote(i,l,i.value.toLowerCase(),m)};i.oninput=f;i.onfocus=f;i.addEventListener('click',e=>{e.stopPropagation();f()});DDH[id]=u=>{if(!u)return;i.value=u;X[id]=u}});if(!K.T.length){const cc=X.x_lg;liveRoster(cc).then(L=>{if(L&&L.length&&X.x_lg===cc){K.T=L;pool=L}})}}
  const mkp=(a,b,c)=>{
   const mode=S.xAnalysisType||'domestic';
@@ -1805,19 +1815,19 @@ Estimate each side's expected goals from attack versus opponent defence and the 
  $('#ck').onclick=async()=>{X.x_hn=cleanName($('#x_hn').value);X.x_an=cleanName($('#x_an').value);$('#x_hn').value=X.x_hn;$('#x_an').value=X.x_an;X.x_ver='';S.aix=null;S.ap=null;$('#out').innerHTML='';$('#aipx').innerHTML='';const r=vet(X.x_hn,X.x_an,X.x_lg,1);
   if(!r.ok){S.xchk=null;S.xmsg=r.m;logEv('check_blocked',X.x_hn+' v '+X.x_an+' | '+X.x_lg,'General prompt');shw();return}
   $('#cres').innerHTML="<span class='sm'>Checking both teams against the live football database\u2026</span>";
-  const K=KNOWN[X.x_lg];let off=0;
-  const one=async(raw,loc)=>{const n=esc(raw),yes=loc&&K.T.includes(loc);
+  const K=KNOWN[X.x_lg]||{T:[],full:0,c:'',reg:null};let off=0;
+  const one=async(raw,loc)=>{const n=esc(raw),yes=loc&&K.T.includes(loc),unlisted=!KNOWN[X.x_lg];
    try{const t=await liveTeam(raw);
-    if(yes)return{ok:1,id:t&&t.id,name:loc,t:`\u2713 ${loc} plays in the ${adH(X.x_lg)}.`};
-    if(!t)return{no:1,t:`\u201C${n}\u201D was not found as a football team in the live database.`};
+    if(yes)return{ok:1,id:t&&t.id,name:loc,t:`\u2713 ${loc} is in the app’s team reference list for ${adH(X.x_lg)}.`};
+    if(!t)return{ok:1,t:`! ${n} was not found in the live team directory. It can still be researched; the AI must independently verify that it is a real club and participates in ${adH(X.x_lg)}.`};
     const hit=leagueHit(t.leagues,X.x_lg),cm=K.c&&nrm0(t.country)===nrm0(K.c),inReg=K.reg&&(K.reg==='*'||K.reg.some(c=>nrm0(c)===nrm0(t.country)));
-    if(K.c&&!cm&&!hit)return{no:1,t:`${esc(t.name)} is a ${esc(t.country)} club and does not play in the ${adH(X.x_lg)}.`};
-    if(K.reg&&K.reg!=='*'&&!inReg&&!hit)return{no:1,t:`${esc(t.name)} (${esc(t.country)}) is not from a country that takes part in the ${adH(X.x_lg)}.`};
-    return{ok:1,id:t.id,name:t.name,t:hit?`\u2713 ${esc(t.name)} (${esc(t.country)}) plays in the ${adH(X.x_lg)}.`:`! ${esc(t.name)} (${esc(t.country)}) exists, but the live database does not list it in the ${adH(X.x_lg)}. The outside AI must confirm.`}}
-   catch(e){off=1;return yes?{ok:1,name:loc,t:`\u2713 ${loc} plays in the ${adH(X.x_lg)}.`}:{ok:1,t:`! ${n}: live check unavailable (offline?). The outside AI must confirm this team.`}}};
+    if(!unlisted&&K.c&&!cm&&!hit)return{no:1,t:`${esc(t.name)} is a ${esc(t.country)} club and does not match the country reference for ${adH(X.x_lg)}.`};
+    if(!unlisted&&K.reg&&K.reg!=='*'&&!inReg&&!hit)return{no:1,t:`${esc(t.name)} (${esc(t.country)}) is not from a country in the reference region for ${adH(X.x_lg)}.`};
+    return{ok:1,id:t.id,name:t.name,t:hit?`\u2713 ${esc(t.name)} (${esc(t.country)}) is listed in ${adH(X.x_lg)} by the live team directory.`:`! ${esc(t.name)} (${esc(t.country)}) exists in the live team directory, but its participation in ${adH(X.x_lg)} is not confirmed there. The research AI must verify it.`}}
+   catch(e){off=1;return{ok:1,name:loc||raw,t:`! Live team lookup unavailable for ${n}. Continue to independent research verification.`}}};
   const [a,b]=await Promise.all([one(X.x_hn,r.H),one(X.x_an,r.A)]),bad=[a,b].filter(x=>x.no);
   if(bad.length){logEv('check_blocked',X.x_hn+' v '+X.x_an+' | '+X.x_lg,'General prompt');S.xchk=null;S.xmsg=bad.map(x=>x.t).join(' ')+' No prompt is created.';shw();return}
-  logEv('check_ok',X.x_hn+' v '+X.x_an+' | '+X.x_lg,'General prompt');S.xchk='out';S.xmsg=[a.t,b.t,off?'Live lookup timed out or was unavailable; the outside AI must independently verify both teams.':'Both team lookups completed.','Fixture scheduling is checked by the research prompt, not by an extra sequential database request.','The outside AI must still say Verified: YES before a prediction is made.'].filter(Boolean).join('<br>');
+  logEv('check_ok',X.x_hn+' v '+X.x_an+' | '+X.x_lg,'General prompt');S.xchk='out';S.xmsg=[a.t,b.t,off?'Live lookup timed out or was unavailable; the outside AI must independently verify both teams.':'Both team lookups completed.','The competition name is accepted even when it is not in the built-in suggestions.','Fixture scheduling and competition participation must be checked by the research prompt.','The outside AI must still say Verified: YES before a prediction is made.'].filter(Boolean).join('<br>');
   shw()};
  sw();wireB();shw();if(S.aix&&S.xchk==='out')draw(S.aix);if(S.ap&&S.ap.mode==='ext'&&S.ap.res)apDraw()}
 /* ---------- club crests: real badge when found, coloured shield with initials otherwise ---------- */
