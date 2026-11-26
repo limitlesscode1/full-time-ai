@@ -828,7 +828,7 @@ const COUNTRIES=[...CONT,...Object.keys(DATA).filter(k=>!CONT.includes(k))];
 const comps=c=>[...DATA[c].L,...DATA[c].cups];
 function teamsOf(c,i){const D=DATA[c];if(i===0)return D.T;const n=i<D.L.length?(i===1?18:16):16;return gen(D.L[i]?.split(" ").map(w=>w[0]).join("")||"Cup",n)}
 const MD=Math.max(1,Math.floor((weekendStart()-new Date('2026-08-14'))/6048e5)+1);
-const S={ptm:'All',tab:'home',country:'Premier League',comp:0,pcountry:'Premier League',pcomp:0,pteam:0,hc:'All',pos:'All',q:'',md:0,mdl:'All',day:'All'};
+const S={ptm:'All',uclView:'all',tab:'home',country:'Premier League',comp:0,pcountry:'Premier League',pcomp:0,pteam:0,hc:'All',pos:'All',q:'',md:0,mdl:'All',day:'All'};
 
 /* ---------- league clock: tables refresh after the LAST match of a matchday ---------- */
 function weekendStart(){const d=new Date();d.setHours(0,0,0,0);d.setDate(d.getDate()-((d.getDay()+2)%7));return d}
@@ -1590,36 +1590,40 @@ function tpList(c){
  const head=`<h3 class='day' style='margin-top:24px'>${as?'Top assists':'Top scorers'}</h3><div class='bar'>${dd('tpm',[['g','Top scorers'],['a','Top assists']],as?'a':'g','List')}</div>`;
  const body=rows.map((p,i)=>`<tr><td>${i+1}</td><td>${adH(p.n)}</td><td>${tmx(p.t)}</td><td>${as?'':'<b>'}${p.g}${as?'':'</b>'}</td><td>${as?'<b>'+p.a+'</b>':p.a}</td><td>${p.ap}</td></tr>`).join('')||`<tr><td colspan=6>${L.sc===null&&!L.scErr?'Loading…':(L.scErr?adH(L.scErr):'Nothing to show yet.')}</td></tr>`;
  return head+`<div class='tw'><table><thead><tr><th>#</th><th>Player</th><th>Team</th><th>Goals</th><th>Assists</th><th>Apps</th></tr></thead><tbody>${body}</tbody></table></div>`+(src.length>20?`<button class='chip' style='margin-top:10px' onclick='S.tpall=!S.tpall;teams()'>${all?'Show top 20':'Show all '+src.length}</button>`:'')}
-/* Competition qualification markers. Prefer provider-supplied descriptions, with
-   explicit inbuilt rules for formats whose positions are fixed by competition regulations. */
+/* Competition qualification markers. Rules are built into the app so markers do not
+   depend on the football provider returning optional description text. Provider
+   descriptions are used as a fallback for competitions without a local rule. */
 function tableZone(s,comp,index,total){
  const pos=Number(s.rank)||index+1;
- // UEFA Champions League league phase: top 8 direct to R16; 9-24 enter play-offs;
- // 25-36 are eliminated from Europe (they are NOT relegated to the Europa League).
- if(comp==='UEFA Champions League'){
-  if(pos>=1&&pos<=8)return{key:'ucl',label:'Direct to Champions League round of 16 (1st–8th)'};
-  if(pos>=9&&pos<=24)return{key:'uclplayoff',label:'Champions League knockout play-offs (9th–24th)'};
-  if(pos>=25&&pos<=36)return{key:'relegation',label:'Eliminated from Europe (25th–36th)'};
- }
- // 2026/27 Championship rules: top two automatic; 3rd–8th play-offs;
- // bottom three relegated to League One.
- if(comp==='Championship'){
-  if(pos<=2)return{key:'promo',label:'Automatic promotion to the Premier League (1st–2nd)'};
-  if(pos<=8)return{key:'playoff',label:'Championship promotion play-offs (3rd–8th)'};
-  if(total>=22&&pos>total-3)return{key:'relegation',label:'Relegation to League One (bottom three)'};
- }
- // Brasileirão Série A has four relegation places; continental qualification places
- // are read from the live provider description because cup winners and allocation can change them.
- if(comp==='Brasileirão Série A'&&total>=20&&pos>total-4)
-  return{key:'relegation',label:'Relegation to Série B (bottom four)'};
+ const bottom=(n,label)=>pos>total-n?{key:'relegation',label}:null;
+ const zone=(key,label)=>({key,label});
+ const rules={
+  'UEFA Champions League':()=>pos<=8?zone('ucl','Direct to Champions League round of 16 (1st–8th)'):pos<=24?zone('uclplayoff','Champions League knockout play-offs (9th–24th)'):pos<=36?zone('relegation','Eliminated from Europe (25th–36th)'):null,
+  'Premier League':()=>pos<=4?zone('ucl','Champions League league phase (league-position places)'):pos===5?zone('uel','Europa League league-position place'):pos===6?zone('uecl','Conference League league-position place'):bottom(3,'Relegation to the Championship (bottom three)'),
+  'La Liga':()=>pos<=4?zone('ucl','Champions League league-phase places (1st–4th)'):pos===5?zone('uel','Europa League league-position place'):pos===6?zone('uecl','Conference League league-position place'):bottom(3,'Relegation to Segunda División (bottom three)'),
+  'Bundesliga':()=>pos<=4?zone('ucl','Champions League league-phase places (1st–4th)'):pos<=6?zone('uel','Europa League league-position places (5th–6th)'):pos===7?zone('uecl','Conference League league-position place'):pos===16?zone('playoff','Bundesliga relegation play-off (16th)'):bottom(2,'Relegation to 2. Bundesliga (bottom two)'),
+  'Serie A':()=>pos<=4?zone('ucl','Champions League league-phase places (1st–4th)'):pos===5?zone('uel','Europa League league-position place'):pos===6?zone('uecl','Conference League league-position place'):bottom(3,'Relegation to Serie B (bottom three)'),
+  'Ligue 1':()=>pos<=3?zone('ucl','Champions League league-phase places (1st–3rd)'):pos===4?zone('uclplayoff','Champions League qualifying place (4th)'):pos===5?zone('uel','Europa League league-position place'):pos===6?zone('uecl','Conference League league-position place'):pos===16?zone('playoff','Ligue 1 relegation play-off (16th)'):bottom(2,'Relegation to Ligue 2 (bottom two)'),
+  'Eredivisie':()=>pos===1?zone('ucl','Champions League league-phase place (1st)'):pos===2?zone('uclplayoff','Champions League qualifying place (2nd)'):pos<=4?zone('uel','Europa qualification places (3rd–4th)'):pos<=8?zone('playoff','European play-off places (5th–8th)'):pos===16?zone('playoff','Relegation play-off (16th)'):bottom(2,'Relegation (bottom two)'),
+  'Primeira Liga':()=>pos<=2?zone('ucl','Champions League places (1st–2nd)'):pos===3?zone('uel','Europa League place (3rd)'):pos===4?zone('uecl','Conference League place (4th)'):pos===16?zone('playoff','Relegation play-off (16th)'):bottom(2,'Relegation (bottom two)'),
+  'Championship':()=>pos<=2?zone('promo','Automatic promotion to the Premier League (1st–2nd)'):pos<=8?zone('playoff','Championship promotion play-offs (3rd–8th, 2026/27 format)'):bottom(3,'Relegation to League One (bottom three)'),
+  'Brasileirão Série A':()=>bottom(4,'Relegation to Série B (bottom four)'),
+  'MLS':()=>pos<=7?zone('playoff','MLS Cup Playoffs qualification (top seven in each conference)'):null,
+  'Saudi Pro League':()=>bottom(3,'Relegation (bottom three)'),
+  'Nigeria NPFL (NFF)':()=>bottom(4,'Relegation (bottom four)')
+ };
+ const built=rules[comp];
+ if(built){const z=built();if(z&&total>0)return z;}
+ // Provider descriptions cover cup winners, extra European performance places and
+ // other competition-specific adjustments when the source supplies them.
  const raw=String(s.desc||'').toLowerCase();
  if(raw){
-  if(/relegat|drop to|eliminat/.test(raw))return{key:'relegation',label:comp==='UEFA Champions League'?'Eliminated from Europe':(/eliminat/.test(raw)?'Eliminated': 'Relegation')};
-  if(/conference league|uefa conference/.test(raw))return{key:'uecl',label:'UEFA Conference League'};
-  if(/europa league|uefa europa/.test(raw))return{key:'uel',label:'UEFA Europa League'};
-  if(/champions league|uefa champions/.test(raw))return{key:'ucl',label:'UEFA Champions League'};
-  if(/play.?off/.test(raw))return{key:'playoff',label:'Promotion play-offs'};
-  if(/promotion|promoted/.test(raw))return{key:'promo',label:'Promotion'};
+  if(/relegat|drop to|eliminat/.test(raw))return zone('relegation',comp==='UEFA Champions League'?'Eliminated from Europe':(/eliminat/.test(raw)?'Eliminated':'Relegation'));
+  if(/conference league|uefa conference/.test(raw))return zone('uecl','UEFA Conference League');
+  if(/europa league|uefa europa/.test(raw))return zone('uel','UEFA Europa League');
+  if(/champions league|uefa champions/.test(raw))return zone('ucl','UEFA Champions League');
+  if(/play.?off/.test(raw))return zone('playoff','Play-off place');
+  if(/promotion|promoted/.test(raw))return zone('promo','Promotion');
  }
  return null;
 }
@@ -1630,8 +1634,14 @@ function tableZoneLegend(zones){
  const keys=ZONE_ORDER.filter(k=>seen.has(k));
  return keys.length?`<div class="table-zone-legend" aria-label="League table qualification key">${keys.map(k=>`<span class="table-zone-item"><i class="table-zone-swatch z-${k}" aria-hidden="true"></i>${adH(seen.get(k))}</span>`).join('')}</div>`:'';
 }
-function teams(){const c=S.country,R=roundOf(c,0),FN=S.fn||5,TB=c==='UEFA Super Cup'?[]:table(R.T,R.name,R.P);DDH.fn=v=>{S.fn=+v;teams()};
- app.innerHTML=`<h2 style='font-size:26px;margin-bottom:10px'>Teams and tables</h2>`+selectors('country','comp',dd('fn',[['5','Last 5 matches'],['10','Last 10 matches'],['15','Last 15 matches'],['20','Last 20 matches']],String(FN),'Form'))+(c==='UEFA Super Cup'?`<h3 class='day'>Super Cup final</h3>`+R.fx.map(rowHtml).join(''):banner(R)+(()=>{const zones=TB.map((s,i)=>tableZone(s,c,i,TB.length));return `<div class='tw'><table><thead><tr><th>#</th><th>Team</th><th>P</th><th>W</th><th>D</th><th>L</th><th>GF</th><th>GA</th><th>GD</th><th>Pts</th><th>Last ${FN}</th></tr></thead><tbody>${TB.map((s,i)=>`<tr><td>${i+1}</td><td><span class='table-team'><span class='table-team-mark ${zones[i]?'z-'+zones[i].key:''}' aria-hidden='true'></span>${tmx(s.t)}${s.live?`<span class='lvdot' title='Playing now'></span>`:''}</span></td><td>${s.P}</td><td>${s.w}</td><td>${s.d}</td><td>${s.l}</td><td>${s.gf}</td><td>${s.ga}</td><td>${s.gf-s.ga>0?'+':''}${s.gf-s.ga}</td><td><b>${s.pts}</b></td><td>${formHtml(s.form)}</td></tr>`).join('')}</tbody></table></div>${tableZoneLegend(zones)}${TB.some(x=>x.live)?`<div class='sm' style='margin-top:8px'><span class='lvdot' style='margin:0 6px 0 0'></span>Live table: includes matches in play and results the official table has not counted yet.</div>`:''}`})()+`${factualTeamSection(c)}${tpList(c)}`)}
+function teams(){const c=S.country,R=roundOf(c,0),FN=S.fn||5,TB=c==='UEFA Super Cup'?[]:table(R.T,R.name,R.P);DDH.fn=v=>{S.fn=+v;teams()};DDH.uclView=v=>{S.uclView=v;teams()};DDH.playoffView=v=>{S.playoffView=v;teams()};
+ const uclOnly=c==='UEFA Champions League',view=S.uclView||'all';
+ const entries=TB.map((s,i)=>({s,i,zone:tableZone(s,c,i,TB.length)}));
+ const hasDomesticPlayoffs=!uclOnly&&entries.some(x=>x.zone&&x.zone.key==='playoff');
+ const domesticView=S.playoffView||'all';
+ const viewControl=uclOnly?dd('uclView',[['all','All 36 teams'],['playoffs','Knockout play-off places (9–24)']],view,'UCL table'):hasDomesticPlayoffs?dd('playoffView',[['all','All teams'],['playoffs','Play-off places']],domesticView,'Table view'):'';
+ const shown=uclOnly&&view==='playoffs'?entries.filter(x=>x.i>=8&&x.i<=23):hasDomesticPlayoffs&&domesticView==='playoffs'?entries.filter(x=>x.zone&&x.zone.key==='playoff'):entries;const shownZones=shown.map(x=>x.zone);
+ app.innerHTML=`<h2 style='font-size:26px;margin-bottom:10px'>Teams and tables</h2>`+selectors('country','comp',viewControl+dd('fn',[['5','Last 5 matches'],['10','Last 10 matches'],['15','Last 15 matches'],['20','Last 20 matches']],String(FN),'Form'))+(c==='UEFA Super Cup'?`<h3 class='day'>Super Cup final</h3>`+R.fx.map(rowHtml).join(''):banner(R)+(()=>{return `<div class='tw'><table><thead><tr><th>#</th><th>Team</th><th>P</th><th>W</th><th>D</th><th>L</th><th>GF</th><th>GA</th><th>GD</th><th>Pts</th><th>Last ${FN}</th></tr></thead><tbody>${shown.map(({s,i},j)=>`<tr><td>${i+1}</td><td><span class='table-team'><span class='table-team-mark ${shownZones[j]?'z-'+shownZones[j].key:''}' aria-hidden='true'></span>${tmx(s.t)}${s.live?`<span class='lvdot' title='Playing now'></span>`:''}</span></td><td>${s.P}</td><td>${s.w}</td><td>${s.d}</td><td>${s.l}</td><td>${s.gf}</td><td>${s.ga}</td><td>${s.gf-s.ga>0?'+':''}${s.gf-s.ga}</td><td><b>${s.pts}</b></td><td>${formHtml(s.form)}</td></tr>`).join('')}</tbody></table></div>${tableZoneLegend(shownZones)}${uclOnly&&view==='playoffs'?`<p class='sm' style='margin-top:8px'>Showing positions 9–24 only. These 16 teams enter the two-legged UEFA Champions League knockout phase play-offs; winners advance to the round of 16.</p>`:''}${hasDomesticPlayoffs&&domesticView==='playoffs'?`<p class='sm' style='margin-top:8px'>Showing only the positions currently marked for a play-off in this competition. The play-off may determine promotion, European qualification or survival, depending on the league.</p>`:''}${TB.some(x=>x.live)?`<div class='sm' style='margin-top:8px'><span class='lvdot' style='margin:0 6px 0 0'></span>Live table: includes matches in play and results the official table has not counted yet.</div>`:''}`})()+`${factualTeamSection(c)}${tpList(c)}`)}
 function ext(top,sw){
  const X=S.xv,v=id=>X[id]||'',E=Object.keys(KNOWN).filter(k=>!KNOWN[k].full&&!CFG.off.includes(k)),inp=(id,l,ph)=>`<label class='sm'>${l}<input id='${id}' placeholder='${ph||''}' value='${v(id).replace(/'/g,'&#39;')}'></label>`;
  if(!E.includes(X.x_lg))X.x_lg=E[0];
